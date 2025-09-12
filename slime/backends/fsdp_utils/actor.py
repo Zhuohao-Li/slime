@@ -226,9 +226,10 @@ class FSDPTrainRayActor(TrainRayActor):
             log_probs = gather_log_probs(logits, batch["tokens"])
 
             if self.args.advantage_estimator == "gspo":
-                raise NotImplementedError("implement GSPO")
-
-            ppo_kl = batch["log_probs"] - log_probs
+                # Compute GSPO-style sequence-level KL divergence
+                ppo_kl = self._compute_gspo_kl_divergence(log_probs, batch["log_probs"], batch["loss_masks"])
+            else:
+                ppo_kl = batch["log_probs"] - log_probs
             pg_loss, pg_clipfrac = compute_policy_loss(
                 ppo_kl, batch["advantages"], self.args.eps_clip, self.args.eps_clip_high
             )
@@ -318,6 +319,40 @@ class FSDPTrainRayActor(TrainRayActor):
         if self.args.offload:
             # TODO: don't wake up here
             self.sleep(("model"))
+
+    def _compute_gspo_kl_divergence(self, log_probs, old_log_probs, loss_masks):
+        """
+        Compute GSPO-style sequence-level KL divergence.
+        
+        Args:
+            log_probs: Current model log probabilities [B, T]
+            old_log_probs: Old model log probabilities [B, T]  
+            loss_masks: Loss masks indicating valid tokens [B, T]
+            
+        Returns:
+            Sequence-level KL divergence expanded to token level [B, T]
+        """
+        batch_size = log_probs.shape[0]
+        gspo_kl_list = []
+        
+        for i in range(batch_size):
+            sample_log_probs = log_probs[i]  # [T]
+            sample_old_log_probs = old_log_probs[i]  # [T]
+            sample_mask = loss_masks[i]  # [T]
+            
+            # Compute token-level KL divergence
+            sample_kl = sample_old_log_probs - sample_log_probs  # [T]
+            
+            # Compute sequence-level average KL (following Megatron implementation)
+            sequence_avg_kl = (sample_kl * sample_mask).sum() / torch.clamp_min(sample_mask.sum(), 1)
+            
+            # Expand sequence-level KL to token level
+            gspo_kl_expanded = sequence_avg_kl.expand_as(sample_kl)  # [T]
+            gspo_kl_list.append(gspo_kl_expanded)
+        
+        # Stack all samples back to batch format
+        ppo_kl = torch.stack(gspo_kl_list, dim=0)  # [B, T]
+        return ppo_kl
 
 
 def gather_log_probs(logits: torch.Tensor, input_ids: torch.Tensor) -> torch.Tensor:
