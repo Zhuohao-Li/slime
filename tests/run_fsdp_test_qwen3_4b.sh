@@ -33,9 +33,7 @@ WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
-   #--hf-checkpoint /root/Qwen3-4B-FP8
-   --ref-load /root/Qwen3-4B_torch_dist
-   --save /root/Qwen3-4B_slime/
+   --save /root/Qwen3-4B_slime_fsdp/
    --save-interval 20
    --rotary-base 1000000 
 )
