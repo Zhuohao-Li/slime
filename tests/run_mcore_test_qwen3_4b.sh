@@ -24,7 +24,6 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-source "${SCRIPT_DIR}/models/qwen3-4B.sh"
 
 MODEL_DIR = /home/data/workgroup/zhuohao/model
 DATA_DIR = /home/data/workgroup/zhuohao/data
