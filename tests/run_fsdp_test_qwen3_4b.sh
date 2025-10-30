@@ -37,7 +37,6 @@ CKPT_ARGS=(
    --ref-load /root/Qwen3-4B_torch_dist
    --save /root/Qwen3-4B_slime_fsdp/
    --save-interval 20
-   --rotary-base 1000000 
 )
 
 ROLLOUT_ARGS=(
@@ -86,9 +85,8 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev-mcore-fsdp
-   --wandb-group qwen3-4B-mcore
+   --wandb-group qwen3-4B-fsdp
    --wandb-key ${WANDB_KEY}
-   --wandb-name qwen3-4B-fsdp
 )
 
 SGLANG_ARGS=(
