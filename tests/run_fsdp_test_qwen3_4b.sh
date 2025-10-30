@@ -30,7 +30,7 @@ DATA_DIR=/home/data/workgroup/zhuohao/data
 WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
-   --hf-checkpoint /root/Qwen3-4B
+   --hf-checkpoint ${MODEL_DIR}/Qwen3-4B
    #--hf-checkpoint /root/Qwen3-4B-FP8
    --ref-load ${MODEL_DIR}/Qwen3-4B_torch_dist
    --load /root/Qwen3-4B_slime/
