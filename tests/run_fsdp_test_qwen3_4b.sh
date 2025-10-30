@@ -25,7 +25,6 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 ROOT_DIR="/home/data/workgroup/zhuohao/"
-source "${SCRIPT_DIR}/../scripts/models/qwen3-4B.sh"
 
 MODEL_DIR=/home/data/workgroup/zhuohao/model
 DATA_DIR=/home/data/workgroup/zhuohao/data
@@ -33,7 +32,6 @@ WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
-   #--hf-checkpoint /root/Qwen3-4B-FP8
    --ref-load /root/Qwen3-4B
    --save /root/Qwen3-4B_slime_fsdp/
    --save-interval 20
@@ -102,9 +100,9 @@ ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus 8 --disable-usage-s
 # Build the runtime environment JSON with proper variable substitution
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
-    \"PYTHONPATH\": \"/root/Megatron-LM/\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
-    \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\"
+    \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\",
+    \"no_proxy\": \"localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}\"
   }
 }"
 
