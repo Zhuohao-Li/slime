@@ -25,9 +25,9 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-MODEL_DIR = /home/data/workgroup/zhuohao/model
-DATA_DIR = /home/data/workgroup/zhuohao/data
-WANDB_KEY = dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
+MODEL_DIR=/home/data/workgroup/zhuohao/model
+DATA_DIR=/home/data/workgroup/zhuohao/data
+WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
