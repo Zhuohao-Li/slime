@@ -37,7 +37,7 @@ CKPT_ARGS=(
    --ref-load /root/Qwen3-4B_torch_dist
    --save /root/Qwen3-4B_slime/
    --save-interval 20
-   --rotary-base 5000000 
+   --rotary-base 1000000 
 )
 
 ROLLOUT_ARGS=(
