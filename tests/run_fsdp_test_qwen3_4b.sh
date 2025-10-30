@@ -33,6 +33,8 @@ WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
+   #--hf-checkpoint /root/Qwen3-4B-FP8
+   --ref-load /root/Qwen3-4B_torch_dist
    --save /root/Qwen3-4B_slime_fsdp/
    --save-interval 20
    --rotary-base 1000000 
@@ -61,22 +63,6 @@ EVAL_ARGS=(
    --eval-top-p 0.7
 )
 
-PERF_ARGS=(
-   --tensor-model-parallel-size 2
-   --sequence-parallel
-   --pipeline-model-parallel-size 1
-   --context-parallel-size 1
-   --expert-model-parallel-size 1
-   --expert-tensor-parallel-size 1
-
-   --recompute-granularity full
-   --recompute-method uniform
-   --recompute-num-layers 1
-
-   # --micro-batch-size 1
-   --use-dynamic-batch-size
-   --max-tokens-per-gpu 9216
-)
 
 GRPO_ARGS=(
    --advantage-estimator grpo
@@ -110,16 +96,6 @@ SGLANG_ARGS=(
    --sglang-mem-fraction-static 0.7
 )
 
-MISC_ARGS=(
-   # default dropout in megatron is 0.1
-   --attention-dropout 0.0
-   --hidden-dropout 0.0
-   # should be good for model performance
-   --accumulate-allreduce-grads-in-fp32
-   --attention-softmax-in-fp32
-   # need to comment this when using model with MLA
-   --attention-backend flash
-)
 
 # launch the master node of ray in container
 export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
@@ -141,13 +117,10 @@ ray job submit --address="http://127.0.0.1:8265" \
    --actor-num-gpus-per-node 8 \
    --colocate \
    --train-backend fsdp \
-   ${MODEL_ARGS[@]} \
    ${CKPT_ARGS[@]} \
    ${ROLLOUT_ARGS[@]} \
    ${OPTIMIZER_ARGS[@]} \
    ${GRPO_ARGS[@]} \
    ${WANDB_ARGS[@]} \
-   ${PERF_ARGS[@]} \
    ${EVAL_ARGS[@]} \
-   ${SGLANG_ARGS[@]} \
-   ${MISC_ARGS[@]}
+   ${SGLANG_ARGS[@]}
