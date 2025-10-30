@@ -32,7 +32,7 @@ WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
-   --ref-load /root/Qwen3-4B
+   # --ref-load /root/Qwen3-4B
    --save /root/Qwen3-4B_slime_fsdp/
    --save-interval 20
 )
@@ -63,7 +63,7 @@ EVAL_ARGS=(
 
 GRPO_ARGS=(
    --advantage-estimator grpo
-   --use-kl-loss
+   # --use-kl-loss
    --kl-loss-coef 0.00
    --kl-loss-type low_var_kl
    --entropy-coef 0.00
