@@ -24,6 +24,8 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+ROOT_DIR="/home/data/workgroup/zhuohao/"
+source "${SCRIPT_DIR}/../scripts/models/qwen3-4B.sh"
 
 MODEL_DIR=/home/data/workgroup/zhuohao/model
 DATA_DIR=/home/data/workgroup/zhuohao/data
@@ -33,9 +35,9 @@ CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
    #--hf-checkpoint /root/Qwen3-4B-FP8
    --ref-load /root/Qwen3-4B_torch_dist
-   --load /root/Qwen3-4B_slime/
    --save /root/Qwen3-4B_slime/
    --save-interval 20
+   --rotary-base 1000000 
 )
 
 ROLLOUT_ARGS=(
