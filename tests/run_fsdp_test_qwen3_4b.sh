@@ -73,7 +73,7 @@ GRPO_ARGS=(
 )
 
 OPTIMIZER_ARGS=(
-   --optimizer deepspeed_cpu_adam
+   --optimizer adam
    --lr 1e-6
    --lr-decay-style constant
    --weight-decay 0.1
@@ -91,17 +91,17 @@ WANDB_ARGS=(
 
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 1  # 🔑 减少每个引擎的GPU数量
-   --sglang-mem-fraction-static 0.8  # 🔑 增加SGLang内存分配
+   --sglang-mem-fraction-static 0.6  # 🔑 增加SGLang内存分配
    --sglang-chunked-prefill-size 4096  # 🔑 分块预填充，减少内存峰值
 )
 
 MISC_ARGS=(
-      --offload-train-mode move \
-   --attn-implementation flash_attention_2 \
-   --gradient-checkpointing \
-   --update-weights-bucket-size $((512 * 1024 * 1024)) \
-   --use-dynamic-batch-size \
-   --max-tokens-per-gpu 9216 \
+   --offload-train-mode move
+   --attn-implementation flash_attention_2
+   --gradient-checkpointing
+   --update-weights-bucket-size $((512 * 1024 * 1024))
+   --use-dynamic-batch-size
+   --max-tokens-per-gpu 9216
 )
 
 
