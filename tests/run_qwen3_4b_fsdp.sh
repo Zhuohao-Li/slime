@@ -168,6 +168,7 @@ MISC_ARGS=(
    --actor-num-gpus-per-node ${NUM_GPUS_PER_NODE}
    --colocate
    --offload-train-mode move
+   --train-env-vars '{"PYTORCH_CUDA_ALLOC_CONF":"expandable_segments:True"}'
    --use-fault-tolerance
    --save-debug-rollout-data /root/shared_data/${RUN_ID}/{rollout_id}.pt
 )
@@ -192,12 +193,12 @@ export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus ${NUM_GPUS_PER_NODE} --disable-usage-stats
 
 # Build the runtime environment JSON with proper variable substitution
+# Note: Removed PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True because it's incompatible with torch_memory_saver used by SGLang
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\",
-    \"no_proxy\": \"localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}\",
-    \"PYTORCH_CUDA_ALLOC_CONF\": \"expandable_segments:True\"${TRUE_ON_POLICY_ENVS}
+    \"no_proxy\": \"localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}\"${TRUE_ON_POLICY_ENVS}
   }
 }"
 
