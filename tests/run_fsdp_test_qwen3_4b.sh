@@ -114,8 +114,7 @@ RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\",
-    \"no_proxy\": \"localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}\",
-    \"PYTORCH_CUDA_ALLOC_CONF\": \"expandable_segments:True\"
+    \"no_proxy\": \"localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}\"
   }
 }"
 
