@@ -50,6 +50,7 @@ ROLLOUT_ARGS=(
    --rollout-temperature 0.8
 
    --global-batch-size 128
+   --balance-data  
 )
 
 EVAL_ARGS=(
@@ -89,8 +90,18 @@ WANDB_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 2
-   --sglang-mem-fraction-static 0.6
+   --rollout-num-gpus-per-engine 1  # 🔑 减少每个引擎的GPU数量
+   --sglang-mem-fraction-static 0.8  # 🔑 增加SGLang内存分配
+   --sglang-chunked-prefill-size 4096  # 🔑 分块预填充，减少内存峰值
+)
+
+MISC_ARGS=(
+      --offload-train-mode move \
+   --attn-implementation flash_attention_2 \
+   --gradient-checkpointing \
+   --update-weights-bucket-size $((512 * 1024 * 1024)) \
+   --use-dynamic-batch-size \
+   --max-tokens-per-gpu 9216 \
 )
 
 
@@ -103,7 +114,8 @@ RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\",
-    \"no_proxy\": \"localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}\"
+    \"no_proxy\": \"localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}\",
+    \"PYTORCH_CUDA_ALLOC_CONF\": \"expandable_segments:True\"
   }
 }"
 
@@ -114,7 +126,6 @@ ray job submit --address="http://127.0.0.1:8265" \
    --actor-num-gpus-per-node 8 \
    --colocate \
    --train-backend fsdp \
-   --offload-train-mode move \
    ${CKPT_ARGS[@]} \
    ${ROLLOUT_ARGS[@]} \
    ${OPTIMIZER_ARGS[@]} \
