@@ -30,7 +30,7 @@ WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
-   --ref-load /root/Qwen3-4B
+   --ref-load /root/Qwen3-4B_torch_dist
 )
 
 ROLLOUT_ARGS=(
