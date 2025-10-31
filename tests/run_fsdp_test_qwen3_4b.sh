@@ -24,17 +24,12 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-ROOT_DIR="/home/data/workgroup/zhuohao/"
 
-MODEL_DIR=/home/data/workgroup/zhuohao/model
 DATA_DIR=/home/data/workgroup/zhuohao/data
 WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
-   # --ref-load /root/Qwen3-4B
-   --save /root/Qwen3-4B_slime_fsdp/
-   --save-interval 20
 )
 
 ROLLOUT_ARGS=(
@@ -44,12 +39,12 @@ ROLLOUT_ARGS=(
    --apply-chat-template
    --rm-type deepscaler
    --num-rollout 3000
-   --rollout-batch-size 16
+   --rollout-batch-size 32
    --n-samples-per-prompt 8
    --rollout-max-response-len 8192
    --rollout-temperature 0.8
 
-   --global-batch-size 128
+   --global-batch-size 256
    --balance-data  
 )
 
@@ -59,6 +54,11 @@ EVAL_ARGS=(
    --n-samples-per-eval-prompt 16
    --eval-max-response-len 16384
    --eval-top-p 0.7
+)
+
+PERF_ARGS=(
+   --use-dynamic-batch-size
+   --max-tokens-per-gpu 32768
 )
 
 
@@ -84,24 +84,30 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev-mcore-fsdp
-   --wandb-group qwen3-4B-fsdp
+   --wandb-group qwen3-4B-fsdp-second
    --wandb-key ${WANDB_KEY}
    --disable-wandb-random-suffix  # 🔑 禁用随机后缀和RANK标识
 )
 
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 1  # 🔑 减少每个引擎的GPU数量
-   --sglang-mem-fraction-static 0.6  # 🔑 增加SGLang内存分配
+   --sglang-mem-fraction-static 0.75  # 🔑 增加SGLang内存分配
    --sglang-chunked-prefill-size 4096  # 🔑 分块预填充，减少内存峰值
 )
 
-MISC_ARGS=(
-   --offload-train-mode move
+FSDP_ARGS=(
+   --train-backend fsdp
    --attn-implementation flash_attention_2
    --gradient-checkpointing
    --update-weights-bucket-size $((512 * 1024 * 1024))
-   --use-dynamic-batch-size
-   --max-tokens-per-gpu 9216
+)
+
+MISC_ARGS=(
+   --actor-num-nodes 1
+   --actor-num-gpus-per-node 8
+   --colocate
+   --offload-train-mode move
+   --train-env-vars '{"PYTORCH_CUDA_ALLOC_CONF":"expandable_segments:True"}'
 )
 
 
@@ -121,15 +127,14 @@ RUNTIME_ENV_JSON="{
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json="${RUNTIME_ENV_JSON}" \
    -- python3 train.py \
-   --actor-num-nodes 1 \
-   --actor-num-gpus-per-node 8 \
-   --colocate \
-   --train-backend fsdp \
+   ${MODEL_ARGS[@]} \
    ${CKPT_ARGS[@]} \
    ${ROLLOUT_ARGS[@]} \
    ${OPTIMIZER_ARGS[@]} \
    ${GRPO_ARGS[@]} \
    ${WANDB_ARGS[@]} \
+   ${PERF_ARGS[@]} \
    ${EVAL_ARGS[@]} \
-   ${SGLANG_ARGS[@]}
+   ${SGLANG_ARGS[@]} \
+   ${FSDP_ARGS[@]} \
    ${MISC_ARGS[@]}
