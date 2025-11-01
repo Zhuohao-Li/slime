@@ -91,8 +91,8 @@ WANDB_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 2  # 🔑 减少每个引擎的GPU数量
-   --sglang-mem-fraction-static 0.7  # 🔑 增加SGLang内存分配
+   --rollout-num-gpus-per-engine 1  # 🔑 减少每个引擎的GPU数量
+   --sglang-mem-fraction-static 0.75  # 🔑 增加SGLang内存分配
    --sglang-chunked-prefill-size 4096  # 🔑 分块预填充，减少内存峰值
 )
 
