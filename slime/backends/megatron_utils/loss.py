@@ -496,7 +496,6 @@ def policy_loss_function(
     if log_probs.numel() == 0:
         loss += 0 * logits.sum()
 
-    # 🔑 计算train_rollout_logprob_abs_diff以匹配FSDP backend
     train_rollout_logprob_abs_diff = None
     if "rollout_log_probs" in batch:
         rollout_log_probs = torch.cat(batch["rollout_log_probs"], dim=0)
@@ -509,7 +508,7 @@ def policy_loss_function(
         "pg_clipfrac": pg_clipfrac.clone().detach(),
         "ppo_kl": ppo_kl.clone().detach(),
     }
-    
+
     if train_rollout_logprob_abs_diff is not None:
         reported_loss["train_rollout_logprob_abs_diff"] = train_rollout_logprob_abs_diff.clone().detach()
 
