@@ -85,7 +85,7 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev-mcore-fsdp
-   --wandb-group qwen3-4B-fsdp-third
+   --wandb-group qwen3-4B-fsdp-wandb
    --wandb-key ${WANDB_KEY}
    --disable-wandb-random-suffix  # 🔑 禁用随机后缀和RANK标识
 )
