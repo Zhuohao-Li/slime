@@ -87,7 +87,7 @@ def pack_sequences(
                 "position_ids": torch.tensor(flat_positionids, dtype=torch.int),
                 "cu_seqlens": torch.tensor(cu_seqlens, dtype=torch.int32),
                 "rewards": torch.tensor([rewards[i] for i in indices], dtype=torch.float32),
-                "raw_rewards": [raw_rewards[i] for i in indices],
+                "raw_reward": [raw_rewards[i] for i in indices],
                 "response_lengths": [response_lengths[i] for i in indices],
                 "advantages": torch.tensor(flat_advantages, dtype=torch.float32),
                 "returns": torch.tensor(flat_returns, dtype=torch.float32),
