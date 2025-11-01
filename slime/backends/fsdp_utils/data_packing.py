@@ -125,7 +125,7 @@ def unpack_sequences(packed_batch: dict) -> list[dict]:
             if key not in instance:
                 # For tensor attributes, we need to slice them appropriately
                 if isinstance(value, torch.Tensor):
-                    if key in ["log_probs", "ref_log_probs", "cur_log_probs"]:
+                    if key in ["log_probs", "ref_log_probs", "cur_log_probs", "entropy"]:
                         # These are computed from logits[:-1] so they have length seq_len-1
                         instance[key] = value[end_idx - 1 - response_lengths[i] : end_idx - 1]
                     elif key == "rollout_log_probs":
