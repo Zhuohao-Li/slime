@@ -93,7 +93,7 @@ eval:
     top_p: 0.7
   datasets:
     - name: aime
-      path: /root/datasets/aime-2024/aime-2024.jsonl
+      path: ${DATA_DIR}/aime-2024/aime-2024.jsonl
       rm_type: deepscaler
       n_samples_per_eval_prompt: 16
     - name: gpqa
@@ -108,7 +108,7 @@ EOF
         EVAL_ARGS+=(--eval-config "$EVAL_CONFIG_FILE")
     else
         EVAL_ARGS+=(
-            --eval-prompt-data aime /root/datasets/aime-2024/aime-2024.jsonl
+            --eval-prompt-data aime ${DATA_DIR}/aime-2024/aime-2024.jsonl
             --n-samples-per-eval-prompt 16
             --eval-max-response-len ${EVAL_MAX_RESPONSE_LEN}
             --eval-top-p 0.7
