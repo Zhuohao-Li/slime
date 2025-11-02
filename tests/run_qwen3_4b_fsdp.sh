@@ -40,7 +40,7 @@ RUN_ID=$(date +%Y%m%d_%H%M%S)_$(openssl rand -hex 3)
 
 CKPT_ARGS=(
    --hf-checkpoint /root/${MODEL_NAME}
-   # --ref-load /root/models/${MODEL_NAME}
+   --ref-load /root/${MODEL_NAME}
 )
 
 # Set response length based on mode
@@ -144,7 +144,7 @@ if [ -n "$WANDB_API_KEY" ]; then
     WANDB_ARGS+=(
         --use-wandb
         --wandb-project slime-dev-mcore-fsdp
-        --wandb-group qwen3-4B-fsdp
+        --wandb-group qwen3-4B-fsdp-revise
         --wandb-key ${WANDB_API_KEY}
         --disable-wandb-random-suffix
     )

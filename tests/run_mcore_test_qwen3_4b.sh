@@ -35,8 +35,6 @@ CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
    #--hf-checkpoint /root/Qwen3-4B-FP8
    --ref-load /root/Qwen3-4B_torch_dist
-   --save /root/Qwen3-4B_slime/
-   --save-interval 20
    --rotary-base 1000000 
 )
 
@@ -45,21 +43,22 @@ ROLLOUT_ARGS=(
    --input-key prompt
    --label-key label
    --apply-chat-template
+   --rollout-shuffle
    --rm-type deepscaler
    --num-rollout 3000
-   --rollout-batch-size 32
-   --n-samples-per-prompt 8
-   --rollout-max-response-len 8192
+   --rollout-batch-size 64
+   --n-samples-per-prompt 16
+   --rollout-max-response-len 32768
    --rollout-temperature 0.8
-
-   --global-batch-size 256
+   --global-batch-size 1024
+   --balance-data
 )
 
 EVAL_ARGS=(
    --eval-interval 20
    --eval-prompt-data aime ${DATA_DIR}/aime-2024/aime-2024.jsonl
    --n-samples-per-eval-prompt 16
-   --eval-max-response-len 16384
+   --eval-max-response-len 32768
    --eval-top-p 0.7
 )
 
@@ -77,7 +76,7 @@ PERF_ARGS=(
 
    # --micro-batch-size 1
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 9216
+   --max-tokens-per-gpu 32768
 )
 
 GRPO_ARGS=(
@@ -102,8 +101,9 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev-mcore-fsdp
-   --wandb-group qwen3-4B-mcore
+   --wandb-group qwen3-4B-mcore-revise
    --wandb-key ${WANDB_KEY}
+   --disable-wandb-random-suffix
 )
 
 SGLANG_ARGS=(
