@@ -22,7 +22,7 @@ NUM_NODES=${SLIME_SCRIPT_NUM_NODES:-1}
 NUM_GPUS_PER_NODE=${SLIME_SCRIPT_NUM_GPUS_PER_NODE:-8}
 HARDWARE=${SLIME_SCRIPT_HARDWARE:-"H100"}
 EXTRA_ARGS=${SLIME_SCRIPT_EXTRA_ARGS:-""}
-MULTI_EVAL=${SLIME_SCRIPT_MULTI_EVAL:-1}
+MULTI_EVAL=${SLIME_SCRIPT_MULTI_EVAL:-0}
 TRUE_ON_POLICY=${SLIME_SCRIPT_ENABLE_TRUE_ON_POLICY:-0}
 DYNAMIC_SAMPLING=${SLIME_SCRIPT_DYNAMIC_SAMPLING:-0}
 ENABLE_EVAL=${SLIME_SCRIPT_ENABLE_EVAL:-1}
@@ -38,6 +38,9 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 RUN_ID=$(date +%Y%m%d_%H%M%S)_$(openssl rand -hex 3)
 
+DATA_DIR=/home/data/workgroup/zhuohao/data
+WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
+
 CKPT_ARGS=(
    --hf-checkpoint /root/${MODEL_NAME}
    --ref-load /root/${MODEL_NAME}
@@ -51,7 +54,7 @@ else
 fi
 
 ROLLOUT_ARGS=(
-   --prompt-data /root/datasets/dapo-math-17k/dapo-math-17k.jsonl
+   --prompt-data ${DATA_DIR}/dapo-math-17k/dapo-math-17k.jsonl
    --input-key prompt
    --label-key label
    --apply-chat-template
