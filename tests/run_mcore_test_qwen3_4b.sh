@@ -58,7 +58,7 @@ EVAL_ARGS=(
    --eval-interval 20
    --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
    --n-samples-per-eval-prompt 16
-   --eval-max-response-len 8192
+   --eval-max-response-len 16384
    --eval-top-p 0.7
 )
 
@@ -76,7 +76,7 @@ PERF_ARGS=(
 
    # --micro-batch-size 1
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 8192
+   --max-tokens-per-gpu 9216
 )
 
 GRPO_ARGS=(
@@ -109,7 +109,6 @@ WANDB_ARGS=(
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 2
    --sglang-mem-fraction-static 0.7
-   --sglang-chunked-prefill-size 4096
 )
 
 MISC_ARGS=(
