@@ -46,11 +46,11 @@ ROLLOUT_ARGS=(
    --rollout-shuffle
    --rm-type deepscaler
    --num-rollout 3000
-   --rollout-batch-size 16
+   --rollout-batch-size 32
    --n-samples-per-prompt 8
-   --rollout-max-response-len 32768
+   --rollout-max-response-len 8192
    --rollout-temperature 0.8
-   --global-batch-size 128
+   --global-batch-size 256
    --balance-data
 )
 
@@ -76,7 +76,7 @@ PERF_ARGS=(
 
    # --micro-batch-size 1
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 32768
+   --max-tokens-per-gpu 8192
 )
 
 GRPO_ARGS=(
@@ -107,8 +107,8 @@ WANDB_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 1
-   --sglang-mem-fraction-static 0.6
+   --rollout-num-gpus-per-engine 2
+   --sglang-mem-fraction-static 0.7
    --sglang-chunked-prefill-size 4096
 )
 
