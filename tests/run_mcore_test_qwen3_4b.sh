@@ -58,7 +58,7 @@ EVAL_ARGS=(
    --eval-interval 20
    --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
    --n-samples-per-eval-prompt 16
-   --eval-max-response-len 32768
+   --eval-max-response-len 8192
    --eval-top-p 0.7
 )
 
