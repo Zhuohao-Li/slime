@@ -155,7 +155,7 @@ fi
 
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 1
-   --sglang-mem-fraction-static 0.75
+   --sglang-mem-fraction-static 0.6
    --sglang-chunked-prefill-size 4096
 )
 
