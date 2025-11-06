@@ -30,7 +30,6 @@ WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
    --ref-load /root/Qwen3-4B
-   --rotary-base 1000000 
 )
 
 ROLLOUT_ARGS=(
@@ -101,15 +100,6 @@ FSDP_ARGS=(
 )
 
 MISC_ARGS=(
-    # default dropout in megatron is 0.1
-   --attention-dropout 0.0
-   --hidden-dropout 0.0
-   # should be good for model performance
-   --accumulate-allreduce-grads-in-fp32
-   --attention-softmax-in-fp32
-   # need to comment this when using model with MLA
-   --attention-backend flash
-   # old
    --actor-num-nodes 1
    --actor-num-gpus-per-node 8
    --colocate

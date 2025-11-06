@@ -108,7 +108,8 @@ SGLANG_ARGS=(
    --sglang-chunked-prefill-size 4096
 )
 
-MISC_ARGS=(
+
+MEGATRON_ARGS=(
    # default dropout in megatron is 0.1
    --attention-dropout 0.0
    --hidden-dropout 0.0
@@ -117,6 +118,9 @@ MISC_ARGS=(
    --attention-softmax-in-fp32
    # need to comment this when using model with MLA
    --attention-backend flash
+)
+
+MISC_ARGS=(
    --actor-num-nodes 1
    --actor-num-gpus-per-node 8
    --colocate
@@ -147,4 +151,5 @@ ray job submit --address="http://127.0.0.1:8265" \
    ${PERF_ARGS[@]} \
    ${EVAL_ARGS[@]} \
    ${SGLANG_ARGS[@]} \
+   ${MEGATRON_ARGS[@]} \
    ${MISC_ARGS[@]}
