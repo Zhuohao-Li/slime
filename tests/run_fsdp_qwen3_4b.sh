@@ -12,7 +12,6 @@ pkill -9 python
 
 set -ex
 
-
 export PYTHONBUFFERED=16
 
 NVLINK_COUNT=$(nvidia-smi topo -m 2>/dev/null | grep -o 'NV[0-9][0-9]*' | wc -l)
@@ -25,20 +24,14 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-
 DATA_DIR=/home/data/workgroup/zhuohao/data
 WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
-
-
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
    --ref-load /root/Qwen3-4B
+   --rotary-base 1000000 
 )
-
-
-
-
 
 ROLLOUT_ARGS=(
    --prompt-data ${DATA_DIR}/dapo-math-17k/dapo-math-17k.jsonl
@@ -46,13 +39,12 @@ ROLLOUT_ARGS=(
    --label-key label
    --apply-chat-template
    --rm-type deepscaler
-   --num-rollout 3000
-   --rollout-batch-size 32
+   --num-rollout 500
+   --rollout-batch-size 16
    --n-samples-per-prompt 8
-   --rollout-max-response-len 8192
+   --rollout-max-response-len 16384
    --rollout-temperature 0.8
-
-   --global-batch-size 256
+   --global-batch-size 128
 )
 
 EVAL_ARGS=(
@@ -64,7 +56,8 @@ EVAL_ARGS=(
 )
 
 PERF_ARGS=(
-   --use-dynamic-batch-size
+   # --use-dynamic-batch-size
+   --micro-batch-size 1
    --max-tokens-per-gpu 9216
 )
 
@@ -91,7 +84,7 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev-mcore-fsdp
-   --wandb-group qwen3-4B-fsdp-revise
+   --wandb-group qwen3-4B-fsdp-1106
    --wandb-key ${WANDB_KEY}
    --disable-wandb-random-suffix
 )
@@ -104,9 +97,7 @@ SGLANG_ARGS=(
 
 FSDP_ARGS=(
    --train-backend fsdp
-   --attn-implementation flash_attention_2
    --gradient-checkpointing
-   --update-weights-bucket-size $((512 * 1024 * 1024))
 )
 
 MISC_ARGS=(

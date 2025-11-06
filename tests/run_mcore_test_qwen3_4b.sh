@@ -12,7 +12,6 @@ pkill -9 python
 
 set -ex
 
-# will prevent ray from buffering stdout/stderr
 export PYTHONBUFFERED=16
 
 NVLINK_COUNT=$(nvidia-smi topo -m 2>/dev/null | grep -o 'NV[0-9][0-9]*' | wc -l)
@@ -24,16 +23,13 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-ROOT_DIR="/home/data/workgroup/zhuohao/"
 source "${SCRIPT_DIR}/../scripts/models/qwen3-4B.sh"
 
-MODEL_DIR=/home/data/workgroup/zhuohao/model
 DATA_DIR=/home/data/workgroup/zhuohao/data
 WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
-   #--hf-checkpoint /root/Qwen3-4B-FP8
    --ref-load /root/Qwen3-4B_torch_dist
    --rotary-base 1000000 
 )
@@ -43,19 +39,19 @@ ROLLOUT_ARGS=(
    --input-key prompt
    --label-key label
    --apply-chat-template
-   --rollout-shuffle
+   # --rollout-shuffle
    --rm-type deepscaler
-   --num-rollout 3000
-   --rollout-batch-size 32
+   --num-rollout 500
+   --rollout-batch-size 16
    --n-samples-per-prompt 8
-   --rollout-max-response-len 8192
+   --rollout-max-response-len 16384
    --rollout-temperature 0.8
-   --global-batch-size 256
-   --balance-data
+   --global-batch-size 128
+   #--balance-data
 )
 
 EVAL_ARGS=(
-   --eval-interval 20
+   --eval-interval 10
    --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
    --n-samples-per-eval-prompt 16
    --eval-max-response-len 16384
@@ -74,8 +70,8 @@ PERF_ARGS=(
    --recompute-method uniform
    --recompute-num-layers 1
 
-   # --micro-batch-size 1
-   --use-dynamic-batch-size
+   --micro-batch-size 1
+   #--use-dynamic-batch-size
    --max-tokens-per-gpu 9216
 )
 
@@ -101,7 +97,7 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev-mcore-fsdp
-   --wandb-group qwen3-4B-mcore-revise
+   --wandb-group qwen3-4B-mcore-1106
    --wandb-key ${WANDB_KEY}
    --disable-wandb-random-suffix
 )
@@ -109,6 +105,7 @@ WANDB_ARGS=(
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 2
    --sglang-mem-fraction-static 0.7
+   --sglang-chunked-prefill-size 4096
 )
 
 MISC_ARGS=(
@@ -120,6 +117,9 @@ MISC_ARGS=(
    --attention-softmax-in-fp32
    # need to comment this when using model with MLA
    --attention-backend flash
+   --actor-num-nodes 1
+   --actor-num-gpus-per-node 8
+   --colocate
 )
 
 # launch the master node of ray in container
@@ -138,9 +138,6 @@ RUNTIME_ENV_JSON="{
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json="${RUNTIME_ENV_JSON}" \
    -- python3 train.py \
-   --actor-num-nodes 1 \
-   --actor-num-gpus-per-node 8 \
-   --colocate \
    ${MODEL_ARGS[@]} \
    ${CKPT_ARGS[@]} \
    ${ROLLOUT_ARGS[@]} \
