@@ -60,7 +60,7 @@ EVAL_ARGS=(
 PERF_ARGS=(
    --use-dynamic-batch-size
    # --micro-batch-size 1
-   --max-tokens-per-gpu 9216
+   --max-tokens-per-gpu 6144
 )
 
 
@@ -75,8 +75,8 @@ GRPO_ARGS=(
 )
 
 OPTIMIZER_ARGS=(
-   --optimizer deepspeed_cpu_adam
-   #--optimizer adam
+   # --optimizer deepspeed_cpu_adam
+   --optimizer adam
    --lr 1e-6
    --lr-decay-style constant
    --weight-decay 0.1
@@ -93,8 +93,8 @@ WANDB_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 2
-   --sglang-mem-fraction-static 0.6
+   --rollout-num-gpus-per-engine 1
+   --sglang-mem-fraction-static 0.75
    --sglang-chunked-prefill-size 4096
 )
 
