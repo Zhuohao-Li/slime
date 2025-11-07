@@ -154,8 +154,8 @@ if [ -n "$WANDB_API_KEY" ]; then
 fi
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 1
-   --sglang-mem-fraction-static 0.6
+   --rollout-num-gpus-per-engine 4
+   --sglang-mem-fraction-static 0.7
    --sglang-chunked-prefill-size 4096
 )
 
