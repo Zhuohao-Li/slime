@@ -44,6 +44,8 @@ ROLLOUT_ARGS=(
    --rollout-max-response-len 16384
    --rollout-temperature 0.8
    --global-batch-size 64
+   --balance-data
+   --rollout-shuffle
 )
 
 EVAL_ARGS=(
