@@ -75,8 +75,8 @@ GRPO_ARGS=(
 )
 
 OPTIMIZER_ARGS=(
-   # --optimizer deepspeed_cpu_adam
-   --optimizer adam
+   --optimizer deepspeed_cpu_adam
+   #--optimizer adam
    --lr 1e-6
    --lr-decay-style constant
    --weight-decay 0.1
