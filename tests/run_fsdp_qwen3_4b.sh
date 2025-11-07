@@ -100,7 +100,7 @@ SGLANG_ARGS=(
 
 FSDP_ARGS=(
    --fsdp-full-params
-   --update-weights-buffer-size $((512 * 1024 * 1024))
+   --update-weights-bucket-size $((512 * 1024 * 1024))
    --train-backend fsdp
    --gradient-checkpointing
 )
