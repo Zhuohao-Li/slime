@@ -57,9 +57,9 @@ EVAL_ARGS=(
 )
 
 PERF_ARGS=(
-   # --use-dynamic-batch-size
-   --micro-batch-size 1
-   --max-tokens-per-gpu 9216
+   --use-dynamic-batch-size
+   # --micro-batch-size 1
+   --max-tokens-per-gpu 32768
 )
 
 
@@ -91,7 +91,7 @@ WANDB_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 2
+   --rollout-num-gpus-per-engine 1
    --sglang-mem-fraction-static 0.6
    --sglang-chunked-prefill-size 4096
 )
