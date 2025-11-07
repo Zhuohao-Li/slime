@@ -94,8 +94,10 @@ WANDB_ARGS=(
 
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 1
+   --fsdp-full-params
    --sglang-mem-fraction-static 0.75
    --sglang-chunked-prefill-size 4096
+   --update-weights-buffer-size $((512 * 1024 * 1024))
 )
 
 FSDP_ARGS=(
