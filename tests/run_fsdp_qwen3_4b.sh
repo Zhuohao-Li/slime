@@ -29,7 +29,7 @@ WANDB_KEY=dfbfb48c275f2d5182d9d3fb6ce84c71d752c39c
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-4B
-   --ref-load /root/Qwen3-4B
+   # --ref-load /root/Qwen3-4B
 )
 
 ROLLOUT_ARGS=(
@@ -66,7 +66,7 @@ PERF_ARGS=(
 
 GRPO_ARGS=(
    --advantage-estimator grpo
-   --use-kl-loss
+   # --use-kl-loss
    --kl-loss-coef 0.00
    --kl-loss-type low_var_kl
    --entropy-coef 0.00
@@ -75,7 +75,8 @@ GRPO_ARGS=(
 )
 
 OPTIMIZER_ARGS=(
-   --optimizer deepspeed_cpu_adam
+   # --optimizer deepspeed_cpu_adam
+   --optimizer adam
    --lr 1e-6
    --lr-decay-style constant
    --weight-decay 0.1
