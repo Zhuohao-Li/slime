@@ -103,7 +103,7 @@ WANDB_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 4
+   --rollout-num-gpus-per-engine 1
    --sglang-mem-fraction-static 0.7
    --sglang-chunked-prefill-size 4096
 )
