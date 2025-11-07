@@ -39,7 +39,6 @@ ROLLOUT_ARGS=(
    --input-key prompt
    --label-key label
    --apply-chat-template
-   # --rollout-shuffle
    --rm-type deepscaler
    --num-rollout 500
    --rollout-batch-size 8
@@ -47,7 +46,8 @@ ROLLOUT_ARGS=(
    --rollout-max-response-len 16384
    --rollout-temperature 0.8
    --global-batch-size 64
-   #--balance-data
+   --balance-data
+   --rollout-shuffle
 )
 
 EVAL_ARGS=(
