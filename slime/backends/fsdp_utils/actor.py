@@ -846,6 +846,10 @@ def sum_of_sample_mean(x: torch.Tensor, response_lengths: list[int], loss_masks:
 @torch.no_grad()
 def move_torch_optimizer(optimizer, device):
     """ref: https://github.com/volcengine/verl/blob/main/verl/utils/fsdp_utils.py"""
+    from .fsdp_cpu_adam_wrapper import FSDPCPUAdamWrapper
+    if isinstance(optimizer, FSDPCPUAdamWrapper):
+        return
+    
     if not optimizer.state:
         return
 

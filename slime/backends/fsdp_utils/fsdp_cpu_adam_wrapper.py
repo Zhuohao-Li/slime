@@ -55,6 +55,7 @@ class FSDPCPUAdamWrapper:
         )
 
         self.param_groups = self.cpu_optimizer.param_groups
+        self.state = self.cpu_optimizer.state
 
     def zero_grad(self, set_to_none: bool = True) -> None:
         """Zero gradients on GPU parameters.
