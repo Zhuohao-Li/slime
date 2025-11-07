@@ -251,6 +251,8 @@ class FSDPTrainRayActor(TrainRayActor):
             self.model.eval()
             need_restore = True
 
+        self.model.eval()
+
         try:
             rollout_data = {f"{store_prefix}log_probs": []}
             with timer(f"{store_prefix}log_probs"), torch.no_grad():
