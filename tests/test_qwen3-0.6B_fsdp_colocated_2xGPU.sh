@@ -83,7 +83,7 @@ SGLANG_ARGS=(
 
 WANDB_ARGS=(
    --use-wandb
-   --wandb-project slime-fsdp
+   --wandb-project slime-dev-mcore-fsdp
    --wandb-group fsdp-2gpu-colocated
    --wandb-key ${WANDB_KEY}
 )
@@ -93,8 +93,18 @@ FSDP_ARGS=(
    # --fsdp-full-params  # Uncomment this line to enable full params mode
 
    # Set the bucket size for weight update
-   --update-weights-buffer-size $((512 * 1024 * 1024)) # 512MB
+   # --update-weights-buffer-size $((512 * 1024 * 1024)) # 512MB
 )
+
+TRUE_ON_POLICY_ARGS=(
+   --sglang-enable-deterministic-inference
+   --sglang-rl-on-policy-target fsdp
+   --sglang-attention-backend fa3
+   --attn-implementation flash_attention_3
+   --deterministic-mode
+   --true-on-policy-mode
+)
+
 
 # launch the master node of ray in container
 ray start --head --node-ip-address 127.0.0.1 --num-gpus 2 --disable-usage-stats
@@ -102,7 +112,10 @@ ray start --head --node-ip-address 127.0.0.1 --num-gpus 2 --disable-usage-stats
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json='{
      "env_vars": {
-        "no_proxy": "localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}"
+        "no_proxy": "localhost,127.0.0.1,0.0.0.0,${MASTER_ADDR}",
+        "NCCL_ALGO": "allreduce:tree",
+        "NVTE_ALLOW_NONDETERMINISTIC_ALGO": "0",
+        "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
      }
    }' \
    -- python3 train.py \
