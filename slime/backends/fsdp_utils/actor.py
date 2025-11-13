@@ -517,22 +517,40 @@ class FSDPTrainRayActor(TrainRayActor):
             self.update_cpu_params_dict(self.weights["ref"])
 
     def _train_step(self, packed_batch, world_size, reported_accum, mbs_id, grad_accum):
+        # For KL computation, we need logits in eval mode to match compute_log_prob
+        # Save training state and temporarily switch to eval for forward pass
+        was_training = self.model.training
+        self.model.eval()
+        
+        with torch.no_grad():  # Don't need gradients for KL computation
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits_for_kl = self.model(
+                    input_ids=packed_batch["tokens"].unsqueeze(0),
+                    attention_mask=None,
+                    position_ids=packed_batch["position_ids"].unsqueeze(0),
+                ).logits
+            
+            # Compute log_probs for KL in eval mode
+            log_probs = gather_log_probs_packed(
+                logits_for_kl,
+                packed_batch["tokens"],
+                allow_compile=not self.args.true_on_policy_mode,
+                cu_seqlens=packed_batch["cu_seqlens"],
+                temperature=self.args.rollout_temperature,
+            )
+            packed_batch["cur_log_probs"] = log_probs
+        
+        # Restore training mode for actual training forward pass
+        if was_training:
+            self.model.train()
+        
+        # Now do the actual training forward pass with gradients
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             logits = self.model(
                 input_ids=packed_batch["tokens"].unsqueeze(0),
                 attention_mask=None,
                 position_ids=packed_batch["position_ids"].unsqueeze(0),
             ).logits
-
-        # Handle packed sequences
-        log_probs = gather_log_probs_packed(
-            logits,
-            packed_batch["tokens"],
-            allow_compile=not self.args.true_on_policy_mode,
-            cu_seqlens=packed_batch["cu_seqlens"],
-            temperature=self.args.rollout_temperature,
-        )
-        packed_batch["cur_log_probs"] = log_probs
 
         shifted_logits = logits.squeeze(0)[:-1]
         log_probs_full = torch.log_softmax(shifted_logits, dim=-1)
