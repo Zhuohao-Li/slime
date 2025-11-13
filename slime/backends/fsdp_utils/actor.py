@@ -126,6 +126,13 @@ class FSDPTrainRayActor(TrainRayActor):
                 config=self.hf_config,
             )
         model.train()
+        
+        # Print model dropout configuration after loading
+        if dist.get_rank() == 0:
+            print(f"[FSDP] Model loaded. Config dropout settings:")
+            for attr in ['attention_dropout', 'hidden_dropout', 'dropout', 'resid_dropout']:
+                if hasattr(model.config, attr):
+                    print(f"  {attr}: {getattr(model.config, attr)}")
 
         if args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
@@ -137,6 +144,14 @@ class FSDPTrainRayActor(TrainRayActor):
 
         # Create FSDP v2 model using FSDP
         self.model = apply_fsdp2(model)
+        
+        # Verify dropout settings after FSDP wrapping
+        if dist.get_rank() == 0:
+            print(f"[FSDP] After FSDP wrapping, model.training={self.model.training}")
+            print(f"[FSDP] Config dropout after wrapping:")
+            for attr in ['attention_dropout', 'hidden_dropout', 'dropout', 'resid_dropout']:
+                if hasattr(self.model.config, attr):
+                    print(f"  {attr}: {getattr(self.model.config, attr)}")
 
         if args.optimizer == "deepspeed_cpu_adam":
             optimizer_config = {
@@ -526,7 +541,13 @@ class FSDPTrainRayActor(TrainRayActor):
         packed_batch["entropy"] = entropy
         unpacked_batches = unpack_sequences(packed_batch)
 
-        old_log_probs = torch.cat([batch["log_probs"] for batch in unpacked_batches], dim=0)
+        # Use rollout_log_probs if available and use_rollout_logprobs is set (for true on-policy)
+        # Otherwise use the recomputed log_probs from eval mode
+        if getattr(self.args, 'use_rollout_logprobs', False) and "rollout_log_probs" in unpacked_batches[0]:
+            old_log_probs = torch.cat([batch["rollout_log_probs"] for batch in unpacked_batches], dim=0)
+        else:
+            old_log_probs = torch.cat([batch["log_probs"] for batch in unpacked_batches], dim=0)
+        
         log_probs = torch.cat([batch["cur_log_probs"] for batch in unpacked_batches], dim=0)
         advantages = torch.cat([batch["advantages"] for batch in unpacked_batches], dim=0)
         loss_masks = [batch["loss_masks"].to(device=log_probs.device) for batch in unpacked_batches]
