@@ -46,13 +46,13 @@ ROLLOUT_ARGS=(
    --rollout-shuffle
    --balance-data
    --rm-type math
-   --num-rollout 300
-   --rollout-batch-size 16
-   --n-samples-per-prompt 16
+   --num-rollout 2
+   --rollout-batch-size 8
+   --n-samples-per-prompt 8
    --rollout-max-response-len 4096
    --rollout-temperature 0.8
 
-   --global-batch-size 256
+   --global-batch-size 64
 )
 
 PERF_ARGS=(

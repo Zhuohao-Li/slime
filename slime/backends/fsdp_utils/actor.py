@@ -478,16 +478,17 @@ class FSDPTrainRayActor(TrainRayActor):
                 attention_mask=None,
                 position_ids=packed_batch["position_ids"].unsqueeze(0),
             ).logits
-
-        # Handle packed sequences
-        log_probs = gather_log_probs_packed(
-            logits,
-            packed_batch["tokens"],
-            allow_compile=not self.args.true_on_policy_mode,
-            cu_seqlens=packed_batch["cu_seqlens"],
-            temperature=self.args.rollout_temperature,
-        )
-        packed_batch["cur_log_probs"] = log_probs
+        
+        # Compute cur_log_probs in no_grad mode to match compute_log_prob
+        with torch.no_grad():
+            log_probs = gather_log_probs_packed(
+                logits.detach(),  # Detach to ensure no gradient dependency
+                packed_batch["tokens"],
+                allow_compile=not self.args.true_on_policy_mode,
+                cu_seqlens=packed_batch["cu_seqlens"],
+                temperature=self.args.rollout_temperature,
+            )
+            packed_batch["cur_log_probs"] = log_probs
 
         shifted_logits = logits.squeeze(0)[:-1]
         log_probs_full = torch.log_softmax(shifted_logits, dim=-1)
@@ -498,6 +499,16 @@ class FSDPTrainRayActor(TrainRayActor):
 
         old_log_probs = torch.cat([batch["log_probs"] for batch in unpacked_batches], dim=0)
         log_probs = torch.cat([batch["cur_log_probs"] for batch in unpacked_batches], dim=0)
+        
+        # Debug: check log_probs difference
+        if mbs_id == 0 and dist.get_rank() == 0:
+            logprobs_diff = (old_log_probs - log_probs).abs()
+            print(f"[DEBUG] mbs_id={mbs_id}: old_log_probs vs cur_log_probs difference:")
+            print(f"  mean={logprobs_diff.mean().item():.6f}, max={logprobs_diff.max().item():.6f}, "
+                  f"min={logprobs_diff.min().item():.6f}")
+            print(f"  old_log_probs: mean={old_log_probs.mean().item():.6f}, std={old_log_probs.std().item():.6f}")
+            print(f"  cur_log_probs: mean={log_probs.mean().item():.6f}, std={log_probs.std().item():.6f}")
+        
         advantages = torch.cat([batch["advantages"] for batch in unpacked_batches], dim=0)
         loss_masks = [batch["loss_masks"].to(device=log_probs.device) for batch in unpacked_batches]
         response_lengths = [batch["response_lengths"] for batch in unpacked_batches]
