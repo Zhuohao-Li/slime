@@ -90,18 +90,32 @@ class FSDPTrainRayActor(TrainRayActor):
         if self.args.multimodal_keys:
             self.vlm_processor = AutoProcessor.from_pretrained(self.args.hf_checkpoint, trust_remote_code=True)
 
-        # Override dropout settings if specified via command line
+        # Override dropout settings from command line
         # Default is 0.0 to ensure deterministic behavior for on-policy training (ppo_kl=0)
-        if hasattr(args, 'model_attention_dropout') and args.model_attention_dropout is not None:
-            if hasattr(self.hf_config, 'attention_dropout'):
-                self.hf_config.attention_dropout = args.model_attention_dropout
-        if hasattr(args, 'model_hidden_dropout') and args.model_hidden_dropout is not None:
-            if hasattr(self.hf_config, 'hidden_dropout'):
-                self.hf_config.hidden_dropout = args.model_hidden_dropout
-            if hasattr(self.hf_config, 'resid_dropout'):
-                self.hf_config.resid_dropout = args.model_hidden_dropout
-            if hasattr(self.hf_config, 'dropout'):
-                self.hf_config.dropout = args.model_hidden_dropout
+        # This matches Megatron's behavior with --attention-dropout 0.0 --hidden-dropout 0.0
+        model_attention_dropout = getattr(args, 'model_attention_dropout', 0.0)
+        model_hidden_dropout = getattr(args, 'model_hidden_dropout', 0.0)
+        
+        dropout_config_changed = False
+        if hasattr(self.hf_config, 'attention_dropout'):
+            original = self.hf_config.attention_dropout
+            self.hf_config.attention_dropout = model_attention_dropout
+            if dist.get_rank() == 0 and original != model_attention_dropout:
+                print(f"[FSDP] Changed attention_dropout from {original} to {model_attention_dropout}")
+                dropout_config_changed = True
+        if hasattr(self.hf_config, 'hidden_dropout'):
+            original = self.hf_config.hidden_dropout
+            self.hf_config.hidden_dropout = model_hidden_dropout
+            if dist.get_rank() == 0 and original != model_hidden_dropout:
+                print(f"[FSDP] Changed hidden_dropout from {original} to {model_hidden_dropout}")
+                dropout_config_changed = True
+        if hasattr(self.hf_config, 'resid_dropout'):
+            self.hf_config.resid_dropout = model_hidden_dropout
+        if hasattr(self.hf_config, 'dropout'):
+            self.hf_config.dropout = model_hidden_dropout
+        
+        if dist.get_rank() == 0 and not dropout_config_changed:
+            print(f"[FSDP] Using dropout: attention={model_attention_dropout}, hidden={model_hidden_dropout}")
 
         # Load model
         with torch.autocast(device_type=f"cuda:{torch.cuda.current_device()}"):
