@@ -287,9 +287,13 @@ class FSDPTrainRayActor(TrainRayActor):
             This method temporarily switches model weights when `model_tag != "actor"`
             and restores the original weights and train mode afterwards.
         """
-        was_training = self.model.training
-        
-        self.model.eval()
+        # For non-actor models (ref, old_actor), use eval mode
+        # For actor model, keep in train mode to match training forward pass
+        need_restore_mode = False
+        if model_tag != "actor":
+            was_training = self.model.training
+            self.model.eval()
+            need_restore_mode = True
         
         need_restore_weights = False
         if model_tag != "actor" and model_tag in self.weights:
@@ -330,7 +334,7 @@ class FSDPTrainRayActor(TrainRayActor):
             if need_restore_weights:
                 self.update_gpu_params_dict(self.weights["actor"])
             
-            if was_training:
+            if need_restore_mode and was_training:
                 self.model.train()
             
             torch.cuda.synchronize()
@@ -517,34 +521,7 @@ class FSDPTrainRayActor(TrainRayActor):
             self.update_cpu_params_dict(self.weights["ref"])
 
     def _train_step(self, packed_batch, world_size, reported_accum, mbs_id, grad_accum):
-        # For KL computation, we need logits in eval mode to match compute_log_prob
-        # Save training state and temporarily switch to eval for forward pass
-        was_training = self.model.training
-        self.model.eval()
-        
-        with torch.no_grad():  # Don't need gradients for KL computation
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits_for_kl = self.model(
-                    input_ids=packed_batch["tokens"].unsqueeze(0),
-                    attention_mask=None,
-                    position_ids=packed_batch["position_ids"].unsqueeze(0),
-                ).logits
-            
-            # Compute log_probs for KL in eval mode
-            log_probs = gather_log_probs_packed(
-                logits_for_kl,
-                packed_batch["tokens"],
-                allow_compile=not self.args.true_on_policy_mode,
-                cu_seqlens=packed_batch["cu_seqlens"],
-                temperature=self.args.rollout_temperature,
-            )
-            packed_batch["cur_log_probs"] = log_probs
-        
-        # Restore training mode for actual training forward pass
-        if was_training:
-            self.model.train()
-        
-        # Now do the actual training forward pass with gradients
+        # Training forward pass
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             logits = self.model(
                 input_ids=packed_batch["tokens"].unsqueeze(0),
@@ -557,10 +534,20 @@ class FSDPTrainRayActor(TrainRayActor):
         probs = torch.softmax(shifted_logits, dim=-1)
         entropy = -(probs * log_probs_full).sum(dim=-1)
         packed_batch["entropy"] = entropy
+        
+        # Compute cur_log_probs from training logits (in train mode)
+        log_probs = gather_log_probs_packed(
+            logits,
+            packed_batch["tokens"],
+            allow_compile=not self.args.true_on_policy_mode,
+            temperature=self.args.rollout_temperature,
+        )
+        packed_batch["cur_log_probs"] = log_probs
+        
         unpacked_batches = unpack_sequences(packed_batch)
 
         # Use rollout_log_probs if available and use_rollout_logprobs is set (for true on-policy)
-        # Otherwise use the recomputed log_probs from eval mode
+        # Otherwise use the recomputed log_probs (now in train mode to match)
         if getattr(self.args, 'use_rollout_logprobs', False) and "rollout_log_probs" in unpacked_batches[0]:
             old_log_probs = torch.cat([batch["rollout_log_probs"] for batch in unpacked_batches], dim=0)
         else:

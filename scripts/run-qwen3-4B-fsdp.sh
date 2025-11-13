@@ -104,8 +104,10 @@ FSDP_ARGS=(
    --train-backend fsdp
    # Set the bucket size for weight update
    --update-weights-bucket-size $((512 * 1024 * 1024)) # 512MB
-   --attn-implementation flash_attention_2
+   # --attn-implementation flash_attention_2
    --gradient-checkpointing
+   --sglang-attention-backend fa3
+   --attn-implementation flash_attention_3
 )
 
 MISC_ARGS=(
