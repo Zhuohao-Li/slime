@@ -90,12 +90,26 @@ class FSDPTrainRayActor(TrainRayActor):
         if self.args.multimodal_keys:
             self.vlm_processor = AutoProcessor.from_pretrained(self.args.hf_checkpoint, trust_remote_code=True)
 
+        # Override dropout settings if specified via command line
+        # Default is 0.0 to ensure deterministic behavior for on-policy training (ppo_kl=0)
+        if hasattr(args, 'model_attention_dropout') and args.model_attention_dropout is not None:
+            if hasattr(self.hf_config, 'attention_dropout'):
+                self.hf_config.attention_dropout = args.model_attention_dropout
+        if hasattr(args, 'model_hidden_dropout') and args.model_hidden_dropout is not None:
+            if hasattr(self.hf_config, 'hidden_dropout'):
+                self.hf_config.hidden_dropout = args.model_hidden_dropout
+            if hasattr(self.hf_config, 'resid_dropout'):
+                self.hf_config.resid_dropout = args.model_hidden_dropout
+            if hasattr(self.hf_config, 'dropout'):
+                self.hf_config.dropout = args.model_hidden_dropout
+
         # Load model
         with torch.autocast(device_type=f"cuda:{torch.cuda.current_device()}"):
             model = AutoModelForCausalLM.from_pretrained(
                 self.args.hf_checkpoint,
                 trust_remote_code=True,
                 attn_implementation=self.args.attn_implementation,
+                config=self.hf_config,
             )
         model.train()
 

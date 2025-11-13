@@ -130,6 +130,24 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
                 default="{}",
                 help="Extra environment variables for training process, e.g. PyTorch memory management ones.",
             )
+            parser.add_argument(
+                "--model-attention-dropout",
+                type=float,
+                default=0.0,
+                help=(
+                    "Attention dropout rate for the model. Default is 0.0 to ensure deterministic behavior "
+                    "in on-policy training (ppo_kl=0). Only used for FSDP backend."
+                ),
+            )
+            parser.add_argument(
+                "--model-hidden-dropout",
+                type=float,
+                default=0.0,
+                help=(
+                    "Hidden/residual dropout rate for the model. Default is 0.0 to ensure deterministic behavior "
+                    "in on-policy training (ppo_kl=0). Only used for FSDP backend."
+                ),
+            )
 
             return parser
 
