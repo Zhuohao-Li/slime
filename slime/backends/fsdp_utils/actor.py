@@ -402,6 +402,10 @@ class FSDPTrainRayActor(TrainRayActor):
             len(grad_accum) > 0
         ), f"Invalid grad_accum {grad_accum} for micro_batch_size {self.args.micro_batch_size} and global_batch_size {self.args.global_batch_size}"
 
+        if dist.get_rank() == 0:
+            print(f"[DEBUG] rollout_id={rollout_id}, num_rollout_samples={len(rollout_data['tokens'])}, "
+                  f"num_packed_batches={len(packed_batches)}, grad_accum={grad_accum}")
+
         if "ref" in self.weights:
             self.compute_log_prob("ref", packed_batches, store_prefix="ref_")
 
@@ -594,6 +598,8 @@ class FSDPTrainRayActor(TrainRayActor):
             reported_accum.setdefault(k, []).append(v)
 
         if (mbs_id + 1) in grad_accum:
+            if dist.get_rank() == 0:
+                print(f"[DEBUG] Executing optimizer.step() at mbs_id={mbs_id} (mbs_id+1={mbs_id+1} in grad_accum={grad_accum})")
             # TODO: check if the grad norm is global grad norm.
             grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
             # the grad norm used to be of DTensor
