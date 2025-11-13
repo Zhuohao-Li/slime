@@ -19,7 +19,7 @@ class ScriptArgs:
     hardware: Literal["H100"] = "H100"
     extra_args: str = ""
     multi_eval: bool = False
-    true_on_policy: bool = False
+    true_on_policy: bool = True
     dynamic_sampling: bool = False
     enable_eval: bool = True
 
