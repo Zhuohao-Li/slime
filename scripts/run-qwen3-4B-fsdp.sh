@@ -44,6 +44,7 @@ ROLLOUT_ARGS=(
    --label-key label
    --apply-chat-template
    --rollout-shuffle
+   --balance-data
    --rm-type math
    --num-rollout 300
    --rollout-batch-size 16
