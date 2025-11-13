@@ -32,8 +32,8 @@ set -ex
 export PYTHONBUFFERED=16
 
 CKPT_ARGS=(
-   --hf-checkpoint /root/models/Qwen3-4B-instruct-2507
-   --ref-load /root/models/Qwen3-4B-instruct-2507
+   --hf-checkpoint /root/models/Qwen3-4B-Instruct-2507
+   --ref-load /root/models/Qwen3-4B-Instruct-2507
 )
 
 ROLLOUT_ARGS=(
