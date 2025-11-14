@@ -253,10 +253,17 @@ class FSDPTrainRayActor(TrainRayActor):
 
         try:
             rollout_data = {f"{store_prefix}log_probs": []}
+            batch_idx = 0
             with timer(f"{store_prefix}log_probs"), torch.no_grad():
                 for batch in self.prof.iterate_train_log_probs(
                     tqdm(packed_batches, desc=f"{store_prefix}log_probs", disable=dist.get_rank() != 0)
                 ):
+                    # Debug: track batch identity in compute_log_prob
+                    if dist.get_rank() == 0 and model_tag == "actor" and batch_idx < 2:
+                        print(f"[DEBUG] compute_log_prob batch_idx={batch_idx}: id={id(batch)}, "
+                              f"tokens[:5]={batch['tokens'][:5].tolist()}")
+                    batch_idx += 1
+                    
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                         model_args = {
                             "input_ids": batch["tokens"].unsqueeze(0),
@@ -499,6 +506,11 @@ class FSDPTrainRayActor(TrainRayActor):
 
         old_log_probs = torch.cat([batch["log_probs"] for batch in unpacked_batches], dim=0)
         log_probs = torch.cat([batch["cur_log_probs"] for batch in unpacked_batches], dim=0)
+        
+        # Debug: check batch identity and tokens
+        if dist.get_rank() == 0 and mbs_id < 2:
+            print(f"[DEBUG] mbs_id={mbs_id}: packed_batch id={id(packed_batch)}, "
+                  f"tokens[:5]={packed_batch['tokens'][:5].tolist()}")
         
         # Debug: check log_probs difference
         if dist.get_rank() == 0:
