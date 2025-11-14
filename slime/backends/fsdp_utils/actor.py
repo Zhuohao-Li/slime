@@ -292,6 +292,11 @@ class FSDPTrainRayActor(TrainRayActor):
                 self.update_gpu_params_dict(self.weights["actor"])
                 self.model.train()
                 torch.cuda.synchronize()
+                # Force FSDP to fully synchronize after weight restoration
+                # This ensures internal state is reset for subsequent forward passes
+                torch.cuda.empty_cache()
+                # Wait for all FSDP operations to complete
+                dist.barrier()
 
     def packed_data(
         self, rollout_data: dict[str, list[torch.Tensor]]
