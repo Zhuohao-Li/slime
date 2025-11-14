@@ -292,10 +292,19 @@ class FSDPTrainRayActor(TrainRayActor):
                 self.update_gpu_params_dict(self.weights["actor"])
                 self.model.train()
                 torch.cuda.synchronize()
-                # Force FSDP to fully synchronize after weight restoration
-                # This ensures internal state is reset for subsequent forward passes
+                # Force FSDP to fully reset internal state after weight switching
+                # Critical: FSDP maintains internal caches that can persist across weight changes
                 torch.cuda.empty_cache()
-                # Wait for all FSDP operations to complete
+                dist.barrier()
+                
+                # CRITICAL FIX: Reset FSDP's forward pass state by calling set_requires_grad
+                # This forces FSDP to invalidate any cached computation graphs
+                for param in self.model.parameters():
+                    param.requires_grad_(param.requires_grad)
+                
+                # Additional: Reset autocast cache which may retain stale dtype conversions
+                torch.clear_autocast_cache()
+                torch.cuda.synchronize()
                 dist.barrier()
 
     def packed_data(
@@ -484,23 +493,33 @@ class FSDPTrainRayActor(TrainRayActor):
             self.update_cpu_params_dict(self.weights["ref"])
 
     def _train_step(self, packed_batch, world_size, reported_accum, mbs_id, grad_accum):
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            logits = self.model(
-                input_ids=packed_batch["tokens"].unsqueeze(0),
-                attention_mask=None,
-                position_ids=packed_batch["position_ids"].unsqueeze(0),
-            ).logits
-        
-        # Compute cur_log_probs in no_grad mode to match compute_log_prob
+        # CRITICAL: Compute cur_log_probs with identical setup to compute_log_prob
+        # This must be done in no_grad() and before any gradient-requiring forward pass
+        # to ensure numerical consistency
         with torch.no_grad():
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits_for_kl = self.model(
+                    input_ids=packed_batch["tokens"].unsqueeze(0),
+                    attention_mask=None,
+                    position_ids=packed_batch["position_ids"].unsqueeze(0),
+                ).logits
+            
             log_probs = gather_log_probs_packed(
-                logits.detach(),  # Detach to ensure no gradient dependency
+                logits_for_kl,
                 packed_batch["tokens"],
                 allow_compile=not self.args.true_on_policy_mode,
                 cu_seqlens=packed_batch["cu_seqlens"],
                 temperature=self.args.rollout_temperature,
             )
             packed_batch["cur_log_probs"] = log_probs
+        
+        # Now do the actual training forward pass (with gradients)
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            logits = self.model(
+                input_ids=packed_batch["tokens"].unsqueeze(0),
+                attention_mask=None,
+                position_ids=packed_batch["position_ids"].unsqueeze(0),
+            ).logits
 
         shifted_logits = logits.squeeze(0)[:-1]
         log_probs_full = torch.log_softmax(shifted_logits, dim=-1)
