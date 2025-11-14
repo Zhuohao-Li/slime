@@ -501,13 +501,14 @@ class FSDPTrainRayActor(TrainRayActor):
         log_probs = torch.cat([batch["cur_log_probs"] for batch in unpacked_batches], dim=0)
         
         # Debug: check log_probs difference
-        if mbs_id == 0 and dist.get_rank() == 0:
+        if dist.get_rank() == 0:
             logprobs_diff = (old_log_probs - log_probs).abs()
-            print(f"[DEBUG] mbs_id={mbs_id}: old_log_probs vs cur_log_probs difference:")
-            print(f"  mean={logprobs_diff.mean().item():.6f}, max={logprobs_diff.max().item():.6f}, "
-                  f"min={logprobs_diff.min().item():.6f}")
-            print(f"  old_log_probs: mean={old_log_probs.mean().item():.6f}, std={old_log_probs.std().item():.6f}")
-            print(f"  cur_log_probs: mean={log_probs.mean().item():.6f}, std={log_probs.std().item():.6f}")
+            if logprobs_diff.max().item() > 1e-7:  # Only print if there's a difference
+                print(f"[DEBUG] mbs_id={mbs_id}: old_log_probs vs cur_log_probs difference:")
+                print(f"  mean={logprobs_diff.mean().item():.6f}, max={logprobs_diff.max().item():.6f}, "
+                      f"min={logprobs_diff.min().item():.6f}")
+                print(f"  old_log_probs: mean={old_log_probs.mean().item():.6f}, std={old_log_probs.std().item():.6f}")
+                print(f"  cur_log_probs: mean={log_probs.mean().item():.6f}, std={log_probs.std().item():.6f}")
         
         advantages = torch.cat([batch["advantages"] for batch in unpacked_batches], dim=0)
         loss_masks = [batch["loss_masks"].to(device=log_probs.device) for batch in unpacked_batches]
