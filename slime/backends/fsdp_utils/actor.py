@@ -244,26 +244,23 @@ class FSDPTrainRayActor(TrainRayActor):
             This method temporarily switches model weights when `model_tag != "actor"`
             and restores the original weights and train mode afterwards.
         """
+        # CRITICAL: Always use eval() mode for log_prob computation to match Megatron's forward_only
+        # This ensures numerical consistency regardless of which model weights are loaded
+        was_training = self.model.training
+        self.model.eval()
+        
         need_restore = False
         if model_tag != "actor" and model_tag in self.weights:
             self.update_cpu_params_dict(self.weights["actor"])
             self.update_gpu_params_dict(self.weights[model_tag])
-            self.model.eval()
             need_restore = True
 
         try:
             rollout_data = {f"{store_prefix}log_probs": []}
-            batch_idx = 0
             with timer(f"{store_prefix}log_probs"), torch.no_grad():
                 for batch in self.prof.iterate_train_log_probs(
                     tqdm(packed_batches, desc=f"{store_prefix}log_probs", disable=dist.get_rank() != 0)
                 ):
-                    # Debug: track batch identity in compute_log_prob
-                    if dist.get_rank() == 0 and model_tag == "actor" and batch_idx < 2:
-                        print(f"[DEBUG] compute_log_prob batch_idx={batch_idx}: id={id(batch)}, "
-                              f"tokens[:5]={batch['tokens'][:5].tolist()}")
-                    batch_idx += 1
-                    
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                         model_args = {
                             "input_ids": batch["tokens"].unsqueeze(0),
@@ -290,22 +287,12 @@ class FSDPTrainRayActor(TrainRayActor):
         finally:
             if need_restore:
                 self.update_gpu_params_dict(self.weights["actor"])
+                torch.cuda.synchronize()
+            
+            # Always restore training mode if it was originally on
+            if was_training:
                 self.model.train()
                 torch.cuda.synchronize()
-                # Force FSDP to fully reset internal state after weight switching
-                # Critical: FSDP maintains internal caches that can persist across weight changes
-                torch.cuda.empty_cache()
-                dist.barrier()
-                
-                # CRITICAL FIX: Reset FSDP's forward pass state by calling set_requires_grad
-                # This forces FSDP to invalidate any cached computation graphs
-                for param in self.model.parameters():
-                    param.requires_grad_(param.requires_grad)
-                
-                # Additional: Reset autocast cache which may retain stale dtype conversions
-                torch.clear_autocast_cache()
-                torch.cuda.synchronize()
-                dist.barrier()
 
     def packed_data(
         self, rollout_data: dict[str, list[torch.Tensor]]
@@ -423,10 +410,6 @@ class FSDPTrainRayActor(TrainRayActor):
             len(grad_accum) > 0
         ), f"Invalid grad_accum {grad_accum} for micro_batch_size {self.args.micro_batch_size} and global_batch_size {self.args.global_batch_size}"
 
-        if dist.get_rank() == 0:
-            print(f"[DEBUG] rollout_id={rollout_id}, num_rollout_samples={len(rollout_data['tokens'])}, "
-                  f"num_packed_batches={len(packed_batches)}, grad_accum={grad_accum}")
-
         if "ref" in self.weights:
             self.compute_log_prob("ref", packed_batches, store_prefix="ref_")
 
@@ -493,33 +476,41 @@ class FSDPTrainRayActor(TrainRayActor):
             self.update_cpu_params_dict(self.weights["ref"])
 
     def _train_step(self, packed_batch, world_size, reported_accum, mbs_id, grad_accum):
-        # CRITICAL: Compute cur_log_probs with identical setup to compute_log_prob
-        # This must be done in no_grad() and before any gradient-requiring forward pass
-        # to ensure numerical consistency
-        with torch.no_grad():
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                logits_for_kl = self.model(
-                    input_ids=packed_batch["tokens"].unsqueeze(0),
-                    attention_mask=None,
-                    position_ids=packed_batch["position_ids"].unsqueeze(0),
-                ).logits
-            
-            log_probs = gather_log_probs_packed(
-                logits_for_kl,
-                packed_batch["tokens"],
-                allow_compile=not self.args.true_on_policy_mode,
-                cu_seqlens=packed_batch["cu_seqlens"],
-                temperature=self.args.rollout_temperature,
-            )
-            packed_batch["cur_log_probs"] = log_probs
-        
-        # Now do the actual training forward pass (with gradients)
+        # Single forward pass for training (matching Megatron's approach)
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             logits = self.model(
                 input_ids=packed_batch["tokens"].unsqueeze(0),
                 attention_mask=None,
                 position_ids=packed_batch["position_ids"].unsqueeze(0),
             ).logits
+        
+        # Compute cur_log_probs from training logits (matching Megatron's loss function)
+        # This is done in eval mode context to match how old_log_probs was computed
+        with torch.no_grad():
+            # Temporarily switch to eval mode to match compute_log_prob
+            was_training = self.model.training
+            self.model.eval()
+            
+            # Recompute logits in eval mode for KL calculation
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits_eval = self.model(
+                    input_ids=packed_batch["tokens"].unsqueeze(0),
+                    attention_mask=None,
+                    position_ids=packed_batch["position_ids"].unsqueeze(0),
+                ).logits
+            
+            log_probs = gather_log_probs_packed(
+                logits_eval,
+                packed_batch["tokens"],
+                allow_compile=not self.args.true_on_policy_mode,
+                cu_seqlens=packed_batch["cu_seqlens"],
+                temperature=self.args.rollout_temperature,
+            )
+            packed_batch["cur_log_probs"] = log_probs
+            
+            # Restore training mode
+            if was_training:
+                self.model.train()
 
         shifted_logits = logits.squeeze(0)[:-1]
         log_probs_full = torch.log_softmax(shifted_logits, dim=-1)
@@ -530,21 +521,6 @@ class FSDPTrainRayActor(TrainRayActor):
 
         old_log_probs = torch.cat([batch["log_probs"] for batch in unpacked_batches], dim=0)
         log_probs = torch.cat([batch["cur_log_probs"] for batch in unpacked_batches], dim=0)
-        
-        # Debug: check batch identity and tokens
-        if dist.get_rank() == 0 and mbs_id < 2:
-            print(f"[DEBUG] mbs_id={mbs_id}: packed_batch id={id(packed_batch)}, "
-                  f"tokens[:5]={packed_batch['tokens'][:5].tolist()}")
-        
-        # Debug: check log_probs difference
-        if dist.get_rank() == 0:
-            logprobs_diff = (old_log_probs - log_probs).abs()
-            if logprobs_diff.max().item() > 1e-7:  # Only print if there's a difference
-                print(f"[DEBUG] mbs_id={mbs_id}: old_log_probs vs cur_log_probs difference:")
-                print(f"  mean={logprobs_diff.mean().item():.6f}, max={logprobs_diff.max().item():.6f}, "
-                      f"min={logprobs_diff.min().item():.6f}")
-                print(f"  old_log_probs: mean={old_log_probs.mean().item():.6f}, std={old_log_probs.std().item():.6f}")
-                print(f"  cur_log_probs: mean={log_probs.mean().item():.6f}, std={log_probs.std().item():.6f}")
         
         advantages = torch.cat([batch["advantages"] for batch in unpacked_batches], dim=0)
         loss_masks = [batch["loss_masks"].to(device=log_probs.device) for batch in unpacked_batches]
@@ -646,8 +622,6 @@ class FSDPTrainRayActor(TrainRayActor):
             reported_accum.setdefault(k, []).append(v)
 
         if (mbs_id + 1) in grad_accum:
-            if dist.get_rank() == 0:
-                print(f"[DEBUG] Executing optimizer.step() at mbs_id={mbs_id} (mbs_id+1={mbs_id+1} in grad_accum={grad_accum})")
             # TODO: check if the grad norm is global grad norm.
             grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_grad)
             # the grad norm used to be of DTensor
