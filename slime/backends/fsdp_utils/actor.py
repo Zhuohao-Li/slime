@@ -90,23 +90,11 @@ class FSDPTrainRayActor(TrainRayActor):
         if self.args.multimodal_keys:
             self.vlm_processor = AutoProcessor.from_pretrained(self.args.hf_checkpoint, trust_remote_code=True)
 
-        # Load model with dropout disabled to match Megatron
-        # This ensures train() and eval() modes produce identical outputs
-        self.hf_config = AutoConfig.from_pretrained(self.args.hf_checkpoint, trust_remote_code=True)
-        
-        # Set all dropout to 0.0 to match Megatron's behavior
-        dropout_attrs = ['attention_dropout', 'hidden_dropout', 'resid_dropout', 'dropout', 'attn_pdrop', 'resid_pdrop']
-        for attr in dropout_attrs:
-            if hasattr(self.hf_config, attr):
-                setattr(self.hf_config, attr, 0.0)
-                if dist.get_rank() == 0:
-                    print(f"[FSDP] Set {attr} = 0.0 for on-policy consistency")
-        
+        # Load model
         with torch.autocast(device_type=f"cuda:{torch.cuda.current_device()}"):
             model = AutoModelForCausalLM.from_pretrained(
                 self.args.hf_checkpoint,
                 trust_remote_code=True,
-                config=self.hf_config,
                 attn_implementation=self.args.attn_implementation,
             )
         model.train()
@@ -256,17 +244,16 @@ class FSDPTrainRayActor(TrainRayActor):
             This method temporarily switches model weights when `model_tag != "actor"`
             and restores the original weights and train mode afterwards.
         """
-        # For non-actor models (ref, old_actor), use eval mode like Megatron's forward_only
-        # For actor model, keep in train mode to match training environment
+        # CRITICAL: Always use eval() mode for log_prob computation to match Megatron's forward_only
+        # This ensures numerical consistency regardless of which model weights are loaded
         was_training = self.model.training
+        self.model.eval()
         
         need_restore = False
         if model_tag != "actor" and model_tag in self.weights:
             self.update_cpu_params_dict(self.weights["actor"])
             self.update_gpu_params_dict(self.weights[model_tag])
-            self.model.eval()  # Non-actor models use eval mode
             need_restore = True
-        # Actor model stays in its current mode (train during training phase)
 
         try:
             rollout_data = {f"{store_prefix}log_probs": []}
@@ -490,7 +477,6 @@ class FSDPTrainRayActor(TrainRayActor):
 
     def _train_step(self, packed_batch, world_size, reported_accum, mbs_id, grad_accum):
         # Single forward pass for training (matching Megatron's approach)
-        # Model stays in train mode throughout, like Megatron's train_one_step
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             logits = self.model(
                 input_ids=packed_batch["tokens"].unsqueeze(0),
@@ -498,18 +484,33 @@ class FSDPTrainRayActor(TrainRayActor):
                 position_ids=packed_batch["position_ids"].unsqueeze(0),
             ).logits
         
-        # Compute cur_log_probs from training logits without gradient tracking
-        # This matches Megatron's approach where log_probs are computed in the loss function
-        # from the same forward pass logits, in train mode
+        # Compute cur_log_probs from training logits (matching Megatron's loss function)
+        # This is done in eval mode context to match how old_log_probs was computed
         with torch.no_grad():
+            # Temporarily switch to eval mode to match compute_log_prob
+            was_training = self.model.training
+            self.model.eval()
+            
+            # Recompute logits in eval mode for KL calculation
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits_eval = self.model(
+                    input_ids=packed_batch["tokens"].unsqueeze(0),
+                    attention_mask=None,
+                    position_ids=packed_batch["position_ids"].unsqueeze(0),
+                ).logits
+            
             log_probs = gather_log_probs_packed(
-                logits.detach(),  # Detach to prevent gradient flow to this computation
+                logits_eval,
                 packed_batch["tokens"],
                 allow_compile=not self.args.true_on_policy_mode,
                 cu_seqlens=packed_batch["cu_seqlens"],
                 temperature=self.args.rollout_temperature,
             )
             packed_batch["cur_log_probs"] = log_probs
+            
+            # Restore training mode
+            if was_training:
+                self.model.train()
 
         shifted_logits = logits.squeeze(0)[:-1]
         log_probs_full = torch.log_softmax(shifted_logits, dim=-1)
@@ -713,13 +714,10 @@ class FSDPTrainRayActor(TrainRayActor):
             This method handles both regular Tensors and DTensors. For DTensors,
             it properly distributes the full tensor according to FSDP sharding.
         """
-        # Cache parameter and buffer maps for efficiency
-        if not hasattr(self, "_fsdp_param_map"):
-            self._fsdp_param_map = dict(self.model.named_parameters())
-            self._fsdp_buffer_map = dict(self.model.named_buffers())
-
-        param_map = self._fsdp_param_map
-        buffer_map = self._fsdp_buffer_map
+        # CRITICAL FIX: Don't cache parameter maps to avoid stale references
+        # Rebuild maps on each call to ensure fresh FSDP state
+        param_map = dict(self.model.named_parameters())
+        buffer_map = dict(self.model.named_buffers())
 
         for name, src in params_dict.items():
             if not torch.is_tensor(src):
