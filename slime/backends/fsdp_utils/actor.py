@@ -442,7 +442,8 @@ class FSDPTrainRayActor(TrainRayActor):
 
         self.compute_log_prob("actor", packed_batches)
 
-        for metric_key in ["log_probs", "ref_log_probs", "advantages", "returns", "raw_reward"]:
+        # Handle per-token metrics that need loss_mask weighting
+        for metric_key in ["log_probs", "ref_log_probs", "advantages", "returns", "rollout_log_probs"]:
             if metric_key not in packed_batches[0]:
                 continue
             val = torch.tensor([0.0], device=torch.cuda.current_device())
@@ -459,6 +460,29 @@ class FSDPTrainRayActor(TrainRayActor):
             log_dict[f"rollout/{metric_key}"] = (
                 val / (self.args.n_samples_per_prompt * self.args.rollout_batch_size)
             ).item()
+
+        # Handle per-sample scalar metrics (rewards, truncated, etc.)
+        # These are partitioned across DP ranks, so we need to aggregate
+        if dist.get_rank() == 0:
+            for metric_key in ["rewards", "truncated", "raw_reward"]:
+                if metric_key not in rollout_data:
+                    continue
+                metric_list = rollout_data[metric_key]
+                if metric_list:
+                    # Gather from all DP ranks
+                    gathered_lists = [None] * self.dp_size
+                    dist.all_gather_object(gathered_lists, metric_list, group=self.dp_group)
+                    # Flatten and compute mean
+                    all_values = [item for sublist in gathered_lists for item in sublist]
+                    log_dict[f"rollout/{metric_key}"] = sum(all_values) / len(all_values)
+
+            if "total_lengths" in rollout_data:
+                gathered_lists = [None] * self.dp_size
+                dist.all_gather_object(gathered_lists, rollout_data["total_lengths"], group=self.dp_group)
+                all_lengths = [item for sublist in gathered_lists for item in sublist]
+                log_dict["rollout/total_lengths_mean"] = sum(all_lengths) / len(all_lengths)
+                log_dict["rollout/total_lengths_max"] = max(all_lengths)
+                log_dict["rollout/total_lengths_min"] = min(all_lengths)
         if dist.get_rank() == 0:
             print(f"rollout {rollout_id}: {log_dict}")
             if self.args.use_wandb:
