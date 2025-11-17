@@ -104,7 +104,7 @@ FSDP_ARGS=(
    # --fsdp-full-params  # Uncomment this line to enable full params mode
    --train-backend fsdp
    # Set the bucket size for weight update
-   --update-weights-bucket-size $((512 * 1024 * 1024)) # 512MB
+   --update-weights-buffer-size $((512 * 1024 * 1024)) # 512MB
    # --attn-implementation flash_attention_2
    --gradient-checkpointing
    --sglang-attention-backend fa3
@@ -118,7 +118,7 @@ MISC_ARGS=(
    --offload-train-mode move \
    --train-env-vars '{"PYTORCH_CUDA_ALLOC_CONF":"expandable_segments:True"}'
    --use-fault-tolerance
-   --dump-details /root/shared_data/qwen3-4B-fsdp-1113/dump_details
+   --dump-details /root/shared_data/qwen3-4B-fsdp-1116-ref/dump_details
 )
 
 # launch the master node of ray in container
