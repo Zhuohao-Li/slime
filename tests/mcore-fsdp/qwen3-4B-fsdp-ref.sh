@@ -104,7 +104,7 @@ FSDP_ARGS=(
    # --fsdp-full-params  # Uncomment this line to enable full params mode
    --train-backend fsdp
    # Set the bucket size for weight update
-   --update-weights-buffer-size $((512 * 1024 * 1024)) # 512MB
+   --update-weight-buffer-size $((512 * 1024 * 1024)) # 512MB
    # --attn-implementation flash_attention_2
    --gradient-checkpointing
    --sglang-attention-backend fa3
