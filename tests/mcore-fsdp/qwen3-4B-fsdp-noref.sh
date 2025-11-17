@@ -1,22 +1,3 @@
-#!/bin/bash
-
-# FSDP Colocated 2GPU Training Script with Weights & Biases Support
-# 
-# This script runs FSDP training with wandb logging enabled.
-# 
-# Wandb Configuration:
-# - Rank and world size are automatically detected from distributed context
-# - Only rank 0 will log to wandb to avoid duplicate entries
-# - Distributed coordination handled by torch.distributed in FSDP actors
-# 
-# To customize wandb settings:
-# 1. Uncomment and set --wandb-team if you're using a team/organization (optional for personal accounts)
-# 2. Set your wandb API key if needed (or use 'wandb login' beforehand)
-# 3. Modify project name and group as needed
-# 4. Change wandb mode to 'offline' for local logging only
-# 5. Uncomment --wandb-dir to specify custom log directory
-
-# for rerun the task
 pkill -9 sglang
 sleep 3
 ray stop --force
@@ -63,7 +44,7 @@ PERF_ARGS=(
 
 GRPO_ARGS=(
    --advantage-estimator grpo
-   --use-kl-loss
+   # --use-kl-loss
    --kl-loss-coef 0.00
    --kl-loss-type low_var_kl
    --kl-coef 0.00
