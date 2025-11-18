@@ -281,6 +281,7 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         response_token_ids += cur_response_token_ids
         loss_masks += [1] * len(cur_response_token_ids)
 
+        # Check length limit
         if output["meta_info"]["finish_reason"]["type"] == "length":
             break
 
@@ -288,6 +289,8 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         if done:
             break
 
+        # Count tool calls (when we get interpreter output, it means a tool
+        # was called)    
         if "<interpreter>" in next_obs:
             tool_call_count += 1
 
@@ -298,6 +301,7 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         loss_masks += [0] * len(obs_tokens_ids)
 
         # Add dummy log probs for observation tokens (they won't be used due to loss_mask=0)
+        # Check if maximum tool call count reached
         if sample.rollout_log_probs is not None:
             sample.rollout_log_probs += [0.0] * len(obs_tokens_ids)
             
