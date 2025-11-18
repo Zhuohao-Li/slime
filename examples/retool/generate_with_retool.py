@@ -267,19 +267,13 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
 
         cur_response = output["text"]
         
-        # IMPORTANT: When collecting log probabilities, we must use token IDs directly from
-        # output_token_logprobs to ensure perfect alignment. We CANNOT postprocess the response
-        # or re-tokenize it, as that may produce different tokens than what the engine generated.
-        # output_token_logprobs format: [[log_prob, token_id, ...], ...]
         if "output_token_logprobs" in output["meta_info"]:
-            # Use token IDs directly from output_token_logprobs
             cur_response_token_ids = [item[1] for item in output["meta_info"]["output_token_logprobs"]]
             cur_log_probs = [item[0] for item in output["meta_info"]["output_token_logprobs"]]
             if sample.rollout_log_probs is None:
                 sample.rollout_log_probs = []
             sample.rollout_log_probs += cur_log_probs
         else:
-            # When not collecting log probs, we can safely postprocess and re-tokenize
             cur_response = postprocess_responses(cur_response)
             cur_response_token_ids = state.tokenizer(cur_response, add_special_tokens=False)["input_ids"]
         
@@ -287,7 +281,6 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         response_token_ids += cur_response_token_ids
         loss_masks += [1] * len(cur_response_token_ids)
 
-        # Check length limit
         if output["meta_info"]["finish_reason"]["type"] == "length":
             break
 
@@ -295,8 +288,6 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         if done:
             break
 
-        # Count tool calls (when we get interpreter output, it means a tool
-        # was called)
         if "<interpreter>" in next_obs:
             tool_call_count += 1
 
@@ -310,12 +301,10 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         if sample.rollout_log_probs is not None:
             sample.rollout_log_probs += [0.0] * len(obs_tokens_ids)
             
-            # Verify alignment after each turn
             assert len(response_token_ids) == len(
                 sample.rollout_log_probs
             ), f"Token/logp length mismatch at turn {turn}: {len(response_token_ids)} tokens vs {len(sample.rollout_log_probs)} logps"
 
-        # Check if maximum tool call count reached
         if turn >= TOOL_CONFIGS["max_tool_calls"]:
             break
 
