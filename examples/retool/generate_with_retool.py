@@ -234,6 +234,7 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         payload = {
             "text": prompt + response,
             "sampling_params": sampling_params,
+            "return_logprob": True,  # Request log probabilities for training
         }
 
         # Log payload to wandb for debugging
@@ -272,6 +273,13 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         response += cur_response
         response_token_ids += cur_response_token_ids
         loss_masks += [1] * len(cur_response_token_ids)
+
+        # Collect rollout log probabilities for training
+        if "output_token_logprobs" in output["meta_info"]:
+            cur_log_probs = [item[0] for item in output["meta_info"]["output_token_logprobs"]]
+            if sample.rollout_log_probs is None:
+                sample.rollout_log_probs = []
+            sample.rollout_log_probs += cur_log_probs
 
         # Check length limit
         if output["meta_info"]["finish_reason"]["type"] == "length":
