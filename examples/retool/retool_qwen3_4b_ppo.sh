@@ -128,9 +128,9 @@ MISC_ARGS=(
    # need to comment this when using model with MLA
    --attention-backend flash
 
-   --actor-num-nodes 1 \
-   --actor-num-gpus-per-node 4 \
-   --colocate \
+   --actor-num-nodes 1
+   --actor-num-gpus-per-node 4
+   --colocate
 )
 
 CUSTOM_ARGS=(

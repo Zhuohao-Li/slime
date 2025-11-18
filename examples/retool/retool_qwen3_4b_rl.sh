@@ -43,12 +43,12 @@ ROLLOUT_ARGS=(
    --rollout-shuffle
    --reward-key score
    --num-rollout 500
-   --rollout-batch-size 32
+   --rollout-batch-size 64
    --n-samples-per-prompt 8
    --rollout-max-response-len 8192
    --rollout-temperature 0.8
 
-   --global-batch-size 256
+   --global-batch-size 512
    --balance-data
 )
 
@@ -118,9 +118,9 @@ MISC_ARGS=(
    # need to comment this when using model with MLA
    --attention-backend flash
 
-   --actor-num-nodes 1 \
-   --actor-num-gpus-per-node 8 \
-   --colocate \
+   --actor-num-nodes 1
+   --actor-num-gpus-per-node 8
+   --colocate
 )
 
 CUSTOM_ARGS=(
