@@ -300,6 +300,10 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
         response_token_ids += obs_tokens_ids
         loss_masks += [0] * len(obs_tokens_ids)
 
+        # Add dummy log probs for observation tokens (they won't be used due to loss_mask=0)
+        if sample.rollout_log_probs is not None:
+            sample.rollout_log_probs += [0.0] * len(obs_tokens_ids)
+
         # Check if maximum tool call count reached
         if turn >= TOOL_CONFIGS["max_tool_calls"]:
             break
