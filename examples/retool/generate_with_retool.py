@@ -290,7 +290,7 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
             break
 
         # Count tool calls (when we get interpreter output, it means a tool
-        # was called)    
+        # was called)
         if "<interpreter>" in next_obs:
             tool_call_count += 1
 
