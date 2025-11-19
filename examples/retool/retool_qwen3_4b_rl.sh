@@ -53,9 +53,9 @@ ROLLOUT_ARGS=(
 )
 
 EVAL_ARGS=(
-   --eval-interval 20
+   --eval-interval 10
    --eval-prompt-data aime  /root/aime-2024/aime-2024.jsonl
-   --n-samples-per-eval-prompt 16
+   --n-samples-per-eval-prompt 8
    --eval-max-response-len 16384
    --eval-top-p 0.7
 )
@@ -106,6 +106,8 @@ WANDB_ARGS=(
 SGLANG_ARGS=(
    --rollout-num-gpus-per-engine 2
    --sglang-mem-fraction-static 0.7
+   --sglang-decode-log-interval 1000
+   --sglang-chunked-prefill-size 4096
 )
 
 MISC_ARGS=(
