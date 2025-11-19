@@ -95,7 +95,7 @@ SGLANG_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dev-mcore-fsdp
-   --wandb-group qwen3-4B-fsdp-1116-ref
+   --wandb-group qwen3-4B-fsdp-ref
    --wandb-key ${WANDB_KEY}
 )
 
