@@ -102,7 +102,6 @@ MISC_ARGS=(
    --actor-num-nodes 1
    --actor-num-gpus-per-node 8
    --colocate
-   --offload-train-mode move \
    --train-env-vars '{"PYTORCH_CUDA_ALLOC_CONF":"expandable_segments:True"}'
    --use-fault-tolerance
    --dump-details /root/shared_data/qwen3-30B-A3B-fsdp/dump_details
