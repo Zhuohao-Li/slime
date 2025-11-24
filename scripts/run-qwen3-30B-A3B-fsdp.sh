@@ -84,10 +84,11 @@ WANDB_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 1
-   --sglang-mem-fraction-static 0.75
+   --rollout-num-gpus-per-engine 4
+   --sglang-mem-fraction-static 0.6
    --sglang-decode-log-interval 1000
    --sglang-chunked-prefill-size 4096
+   --sglang-cuda-graph-max-bs 512
 )
 
 FSDP_ARGS=(
