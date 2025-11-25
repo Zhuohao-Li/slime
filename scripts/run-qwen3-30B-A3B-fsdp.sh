@@ -50,7 +50,7 @@ ROLLOUT_ARGS=(
 PERF_ARGS=(
    # --micro-batch-size 1
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 12288
+   --max-tokens-per-gpu 8192
 )
 
 GRPO_ARGS=(
