@@ -97,7 +97,7 @@ FSDP_ARGS=(
    --gradient-checkpointing
    --attn-implementation flash_attention_2
    # --sglang-attention-backend fa3
-   --fsdp-cpu-offload
+   # --fsdp-cpu-offload
 )
 
 MISC_ARGS=(
