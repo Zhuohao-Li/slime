@@ -96,8 +96,8 @@ FSDP_ARGS=(
    --update-weight-buffer-size 512000000
    --gradient-checkpointing
    --attn-implementation flash_attention_2
-   --sglang-attention-backend fa3
-   # --fsdp-cpu-offload
+   # --sglang-attention-backend fa3
+   --fsdp-cpu-offload
 )
 
 MISC_ARGS=(
