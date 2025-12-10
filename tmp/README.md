@@ -1,0 +1,30 @@
+# Using Megatron-Bridge to train Qwen3-VL
+
+In latest slime image, update mcore to dev branch:
+
+```
+git clone https://github.com/NVIDIA/Megatron-LM.git --recursive && \
+    cd Megatron-LM && git checkout dev && \
+    pip install -e .
+```
+convert hf checkpoints to megatron:
+```
+python -m torch.distributed.run --nproc_per_node=1 examples/conversion/convert_checkpoints.py   import \
+    --hf-model /root/Qwen3-VL-8B-Instruct \
+    --megatron-path /root/checkpoints/qwen3vl8b
+```
+train:
+```
+python -m torch.distributed.run --nproc_per_node=8 \
+    examples/recipes/qwen_vl/finetune_qwen_vl.py \
+    --recipe qwen3_vl_8b_finetune_config \
+    --pretrained-checkpoint /root/checkpoints/qwen3vl8b \
+    model.tensor_model_parallel_size=1 \
+    train.global_batch_size=8 \
+    train.micro_batch_size=1 \
+    train.train_iters=2
+```
+
+## FAQ
+
+if encounter cudnn issue, refer to this issue reported from mcore: [#issue](https://github.com/nvidia/megatron-lm/issues/1882)
