@@ -1,4 +1,4 @@
-# copy from https://github.com/NVIDIA/Megatron/blob/main/examples/conversion/convert_checkpoints.py
+# adapt from https://github.com/NVIDIA-NeMo/Megatron-Bridge/blob/main/examples/conversion/convert_checkpoints.py
 
 """
 Megatron-HuggingFace Checkpoint Conversion Example

@@ -1,4 +1,4 @@
-# copy from https://github.com/NVIDIA/Megatron/blob/main/examples/recipes/qwen_vl/finetune_qwen_vl.py
+# adapt from https://github.com/NVIDIA-NeMo/Megatron-Bridge/blob/main/examples/recipes/qwen_vl/finetune_qwen_vl.py
 
 """
 Unified Qwen-VL Finetuning Script with YAML and CLI Configuration Overrides.

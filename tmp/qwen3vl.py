@@ -1,4 +1,4 @@
-# copy from https://github.com/NVIDIA/Megatron/blob/main/examples/recipes/qwen_vl/qwen3vl.py
+# adapt from https://github.com/NVIDIA-NeMo/Megatron-Bridge/blob/main/src/megatron/bridge/recipes/qwen_vl/qwen3vl.py
 
 import os
 from typing import List, Optional, Union
