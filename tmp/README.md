@@ -9,14 +9,14 @@ git clone https://github.com/NVIDIA/Megatron-LM.git --recursive && \
 ```
 convert hf checkpoints to megatron:
 ```
-python -m torch.distributed.run --nproc_per_node=1 examples/conversion/convert_checkpoints.py   import \
+python -m torch.distributed.run --nproc_per_node=1 convert_checkpoints.py   import \
     --hf-model /root/Qwen3-VL-8B-Instruct \
     --megatron-path /root/checkpoints/qwen3vl8b
 ```
 train:
 ```
 python -m torch.distributed.run --nproc_per_node=8 \
-    examples/recipes/qwen_vl/finetune_qwen_vl.py \
+    finetune_qwen_vl.py \
     --recipe qwen3_vl_8b_finetune_config \
     --pretrained-checkpoint /root/checkpoints/qwen3vl8b \
     model.tensor_model_parallel_size=1 \
