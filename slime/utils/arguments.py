@@ -180,23 +180,6 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
                     "Also, sometimes this will help alleviate the bug that transformers cannot find certain model."
                 ),
             )
-
-            parser.add_argument(
-                 "--vlm-recipe",
-                type=str,
-                default=None,
-                help=(
-                    "The VLM recipe name from megatron.bridge for model initialization. "
-                    "When set, the model will be initialized using megatron.bridge instead of megatron-core. "
-                ),
-            )
-            parser.add_argument(
-                "--image-folder",
-                type=str,
-                default=None,
-                help="The folder containing images for VLM training.",
-            )
-
             parser.add_argument(
                 "--rollout-function-path",
                 type=str,

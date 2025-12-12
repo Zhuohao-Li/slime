@@ -361,7 +361,6 @@ def train_one_step(
                 "advantages",
                 "returns",
                 "rollout_log_probs",
-                "visual_inputs",  # VLM support
             ],
             args.data_pad_size_multiplier,
         )
@@ -422,23 +421,15 @@ def train_one_step(
                     "mtp_labels": batch["tokens"],
                 }
 
-            forward_args = {
-                "input_ids": batch["tokens"],
-                "position_ids": None,
-                "attention_mask": None,
-                "labels": None,
-                "packed_seq_params": batch["packed_seq_params"],
-                "loss_mask": loss_mask,
+            output_tensor = model(
+                input_ids=batch["tokens"],
+                position_ids=None,
+                attention_mask=None,
+                labels=None,
+                packed_seq_params=batch["packed_seq_params"],
+                loss_mask=loss_mask,
                 **(dict(mtp_kwargs=mtp_kwargs) if mtp_kwargs is not None else {}),
-            }
-            if batch.get("visual_inputs") is not None:
-                visual_inputs = batch["visual_inputs"]
-                if hasattr(visual_inputs, "normalized_for_model"):
-                    forward_args.update(visual_inputs.normalized_for_model())
-                else:
-                    forward_args["visual_inputs"] = visual_inputs
-
-            output_tensor = model(**forward_args)
+            )
 
         if os.environ.get("ENABLE_ROUTING_REPLAY", "0") == "1":
             os.environ["ROUTING_REPLAY_STAGE"] = old_stage
@@ -710,72 +701,6 @@ def save(
         enable_forward_pre_hook(model)
 
 
-def _is_vlm_model(args: Namespace) -> bool:
-    """Check if the model is a VLM model based on vlm_recipe."""
-    vlm_recipe = getattr(args, "vlm_recipe", None)
-    return vlm_recipe is not None
-
-
-def _initialize_vlm_model_and_optimizer(
-    args: Namespace, role: str = "actor"
-) -> tuple[list, object, object, int]:
-    """Initialize VLM model using megatron.bridge.
-
-    Args:
-        args (Namespace): Runtime arguments.
-        role (str): Logical role of the model (e.g., "actor", "critic").
-
-    Returns:
-        tuple: model, optimizer, scheduler, and iteration index.
-    """
-    from megatron.bridge.training.setup import setup as bridge_setup
-    from megatron.bridge.training.state import GlobalState
-    from megatron.bridge.data.utils import get_dataset_provider
-    
-    from megatron.bridge.recipes.qwen_vl import qwen3vl as qwen3_vl_recipes
-
-    # Patch for Qwen3-VL
-    from megatron.bridge.models.qwen_vl.modelling_qwen3_vl.text_model import Qwen3VLTextRotaryEmbedding
-    _original_forward = Qwen3VLTextRotaryEmbedding.forward
-    def _patched_forward(self, *forward_args, packed_seq_params=None, **kwargs):
-        return _original_forward(self, *forward_args, **kwargs)
-    Qwen3VLTextRotaryEmbedding.forward = _patched_forward
-
-    recipe_name = args.vlm_recipe
-    pretrain_config = getattr(qwen3_vl_recipes, recipe_name)
-
-    cfg = pretrain_config(
-        dataset_type="mock",  # For now, use mock dataset
-        pretrained_checkpoint=args.load,
-        tensor_parallelism=args.tensor_model_parallel_size,
-        pipeline_parallelism=args.pipeline_model_parallel_size,
-        global_batch_size=args.global_batch_size,
-        micro_batch_size=args.micro_batch_size,
-        train_iters=getattr(args, "train_iters", 1000),
-        lr=args.lr,
-    )
-
-    # Create GlobalState
-    from megatron.bridge.training.config import runtime_config_update
-    runtime_config_update(cfg)
-
-    state = GlobalState()
-    state.cfg = cfg
-
-    # Setup
-    dataset_provider = get_dataset_provider(cfg.dataset)
-    setup_output = bridge_setup(state, dataset_provider)
-
-    model = setup_output.model
-    optimizer = setup_output.optimizer
-    scheduler = setup_output.scheduler
-    iteration = getattr(setup_output.state.train_state, "step", 0)
-
-    logger.info(f"VLM model initialized with megatron.bridge: {type(model)}")
-
-    return [model], optimizer, scheduler, iteration
-
-
 def initialize_model_and_optimizer(
     args: Namespace, role: str = "actor"
 ) -> tuple[list[DDP], MegatronOptimizer, OptimizerParamScheduler, int]:
@@ -789,10 +714,6 @@ def initialize_model_and_optimizer(
         tuple[list[DDP], MegatronOptimizer, OptimizerParamScheduler, int]:
             DDP-wrapped model chunks, optimizer, scheduler, and iteration index.
     """
-    if _is_vlm_model(args):
-        logger.info("Detected VLM model, using megatron.bridge for initialization")
-        return _initialize_vlm_model_and_optimizer(args, role)
-
     model, optimizer, opt_param_scheduler = setup_model_and_optimizer(args, role)
     model[0].role = role
     clear_memory()
