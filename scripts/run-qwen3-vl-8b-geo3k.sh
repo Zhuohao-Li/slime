@@ -35,7 +35,7 @@ if [ ! -d "/root/datasets/geo3k_imgurl" ]; then
     hf download --repo-type dataset chenhegu/geo3k_imgurl --local-dir /root/datasets/geo3k_imgurl
 fi
 
-# VLM model args - use megatron-bridge for VLM initialization
+
 MODEL_ARGS=(
    --model-name qwen3-vl
 )

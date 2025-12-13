@@ -1286,7 +1286,8 @@ def parse_args(add_custom_arguments=None):
                 megatron_config_from_hf = get_mapper(hf_config.model_type)(hf_config)
                 _validate_and_update_megatron_args_from_hf(args, megatron_config_from_hf.transformer_config)
                 _validate_and_update_megatron_args_from_hf(args, megatron_config_from_hf.gpt_model_args)
-            hf_validate_args(args, hf_config)
+            if not getattr(args, "multimodal_keys", None):
+                hf_validate_args(args, hf_config)
 
         args.rank = 0
         args.world_size = args.actor_num_nodes * args.actor_num_gpus_per_node
