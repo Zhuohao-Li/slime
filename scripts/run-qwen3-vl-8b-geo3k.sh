@@ -50,7 +50,6 @@ ROLLOUT_ARGS=(
    --prompt-data /root/datasets/geo3k_imgurl/train.parquet
    --input-key problem
    --label-key answer
-   --multimodal-keys '{"image": "images"}'
    --apply-chat-template
    --rollout-shuffle
    --rm-type math
@@ -61,6 +60,8 @@ ROLLOUT_ARGS=(
    --rollout-temperature 0.8
    --global-batch-size 512
 )
+
+MULTIMODAL_KEYS='{"image": "images"}'
 
 EVAL_ARGS=(
 #    --eval-interval 50
@@ -156,6 +157,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --actor-num-nodes 1 \
    --actor-num-gpus-per-node ${NUM_GPUS} \
    --train-backend megatron \
+   --multimodal-keys "${MULTIMODAL_KEYS}" \
    ${MODEL_ARGS[@]} \
    ${CKPT_ARGS[@]} \
    ${ROLLOUT_ARGS[@]} \
