@@ -43,7 +43,7 @@ MODEL_ARGS=(
 
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-VL-8B-Instruct
-   --load /root/models/Qwen3-VL-8B-Instruct
+   --load /root/Qwen3-VL-8B-Instruct
 )
 
 ROLLOUT_ARGS=(
