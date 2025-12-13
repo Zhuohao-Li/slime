@@ -38,7 +38,6 @@ fi
 # VLM model args - use megatron-bridge for VLM initialization
 MODEL_ARGS=(
    --model-name qwen3-vl
-   --vlm-recipe qwen3_vl_8b_finetune_config
 )
 
 CKPT_ARGS=(
