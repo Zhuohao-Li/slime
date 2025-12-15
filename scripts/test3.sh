@@ -110,7 +110,7 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-dapo
-   --wandb-group qwen3-30B-A3B-Base-1
+   --wandb-group qwen3-30B-A3B-Base-3
    --wandb-key ${WANDB_API_KEY}
 )
 
