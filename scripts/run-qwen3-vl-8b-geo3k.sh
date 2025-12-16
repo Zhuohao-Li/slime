@@ -35,11 +35,6 @@ if [ ! -d "/root/datasets/geo3k_imgurl" ]; then
     hf download --repo-type dataset chenhegu/geo3k_imgurl --local-dir /root/datasets/geo3k_imgurl
 fi
 
-
-MODEL_ARGS=(
-   --model-name qwen3-vl
-)
-
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-VL-8B-Instruct
    --load /root/Qwen3-VL-8B-Instruct
