@@ -26,6 +26,9 @@ else
 fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+source "${SCRIPT_DIR}/models/qwen3-vl-8B.sh"
+
 # Download model and dataset if not present
 mkdir -p /root/models /root/datasets
 if [ ! -d "/root/models/Qwen3-VL-8B-Instruct" ]; then
