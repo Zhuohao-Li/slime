@@ -1302,7 +1302,7 @@ def parse_args(add_custom_arguments=None):
     slime_validate_args(args)
 
     if backend == "megatron":
-        # megatron_validate_args(args)
+        megatron_validate_args(args)
 
         # always use varlen
         args.variable_seq_lengths = True
