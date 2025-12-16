@@ -27,4 +27,22 @@ def set_default_megatron_args(args):
         logger.info("--tokenizer-model not set, use --hf-checkpoint as tokenizer model.")
         args.tokenizer_model = args.hf_checkpoint
         args.tokenizer_type = "HuggingFaceTokenizer"
+
+    # Set default values for mpu.initialize_model_parallel parameters
+    # These may not be set by some Megatron-LM versions
+    if not hasattr(args, "virtual_pipeline_model_parallel_size"):
+        args.virtual_pipeline_model_parallel_size = None
+    if not hasattr(args, "pipeline_model_parallel_comm_backend"):
+        args.pipeline_model_parallel_comm_backend = None
+    if not hasattr(args, "hierarchical_context_parallel_sizes"):
+        args.hierarchical_context_parallel_sizes = None
+    if not hasattr(args, "num_distributed_optimizer_instances"):
+        args.num_distributed_optimizer_instances = 1
+    if not hasattr(args, "nccl_communicator_config_path"):
+        args.nccl_communicator_config_path = None
+    if not hasattr(args, "use_tp_pp_dp_mapping"):
+        args.use_tp_pp_dp_mapping = False
+    if not hasattr(args, "enable_gloo_process_groups"):
+        args.enable_gloo_process_groups = False
+
     return args

@@ -536,19 +536,8 @@ def _start_router(args, prefill_and_decode_urls=None):
 
 def _log_eval_rollout_data(rollout_id, args, data, extra_metrics: dict[str, Any] | None = None):
     log_dict = extra_metrics or {}
-    reward_key = args.eval_reward_key or args.reward_key
     for key in data.keys():
         rewards = data[key]["rewards"]
-        # Extract numeric values from rewards if they are dicts
-        if rewards and isinstance(rewards[0], dict):
-            if reward_key:
-                rewards = [r[reward_key] for r in rewards]
-            else:
-                logger.warning(
-                    f"Rewards for eval dataset '{key}' are dicts but no reward_key is specified. "
-                    "Set --reward-key or --eval-reward-key to extract numeric values. Skipping this dataset."
-                )
-                continue
         log_dict[f"eval/{key}"] = sum(rewards) / len(rewards)
         if (samples := data[key].get("samples")) is not None:
             log_dict |= dict_add_prefix(compute_metrics_from_samples(args, samples), f"eval/{key}/")
