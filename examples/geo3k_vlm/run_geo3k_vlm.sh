@@ -20,7 +20,7 @@ if ! echo "$VALID_MODELS" | grep -qw "$MODEL_NAME"; then
    exit 1
 fi
 
-MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')
+MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/\([0-9]\+\)b/\1B/g' | sed 's/-instruct$/-Instruct/')
 
 # External Ray flag
 if [ -z "$SLIME_SCRIPT_EXTERNAL_RAY" ] || [ "$SLIME_SCRIPT_EXTERNAL_RAY" = "0" ]; then
