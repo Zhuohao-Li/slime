@@ -17,6 +17,7 @@ MODEL_ARGS=(
    --group-query-attention
    --disable-bias-linear
    --kv-channels 128
+   --untie-embeddings-and-output-weights
 
    # moe
    --moe-ffn-hidden-size 768
