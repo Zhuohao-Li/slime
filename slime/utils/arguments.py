@@ -1286,8 +1286,7 @@ def parse_args(add_custom_arguments=None):
                 megatron_config_from_hf = get_mapper(hf_config.model_type)(hf_config)
                 _validate_and_update_megatron_args_from_hf(args, megatron_config_from_hf.transformer_config)
                 _validate_and_update_megatron_args_from_hf(args, megatron_config_from_hf.gpt_model_args)
-            if not getattr(args, "multimodal_keys", None):
-                hf_validate_args(args, hf_config)
+            hf_validate_args(args, hf_config)
 
         args.rank = 0
         args.world_size = args.actor_num_nodes * args.actor_num_gpus_per_node
@@ -1393,7 +1392,8 @@ def slime_validate_args(args):
         args.no_load_optim = True
         args.no_load_rng = True
         args.finetune = True
-        args.load = args.ref_load
+        if not args.megatron_to_hf_mode == "bridge":
+            args.load = args.ref_load
         if args.ref_ckpt_step is not None:
             args.ckpt_step = args.ref_ckpt_step
         args.start_rollout_id = 0

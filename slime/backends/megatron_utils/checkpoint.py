@@ -54,6 +54,7 @@ def _load_checkpoint_hf(ddp_model, optimizer, args, load_path: str):
     bridge = getattr(args, "_bridge", None)
     if bridge is None:
         from megatron.bridge import AutoBridge
+
         bridge = AutoBridge.from_hf_pretrained(load_path, trust_remote_code=True)
 
     with megatron_bridge_utils.patch_megatron_model(ddp_model):

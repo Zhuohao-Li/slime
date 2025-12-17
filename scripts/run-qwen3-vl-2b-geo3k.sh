@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Qwen3-VL-8B RL training on geo3k dataset using megatron backend
+# Qwen3-VL-2B RL training on geo3k dataset using megatron backend
 # Note: This requires megatron-bridge VLM support
 
 # for rerun the task
@@ -27,20 +27,20 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-source "${SCRIPT_DIR}/models/qwen3-vl-8B.sh"
+source "${SCRIPT_DIR}/models/qwen3-vl-2B-Instruct.sh"
 
 # Download model and dataset if not present
 mkdir -p /root/models /root/datasets
-if [ ! -d "/root/Qwen3-VL-8B-Instruct" ]; then
-    hf download Qwen/Qwen3-VL-8B-Instruct --local-dir /root/Qwen3-VL-8B-Instruct
+if [ ! -d "/root/Qwen3-VL-2B-Instruct" ]; then
+    hf download Qwen/Qwen3-VL-2B-Instruct --local-dir /root/Qwen3-VL-2B-Instruct
 fi
 if [ ! -d "/root/datasets/geo3k_imgurl" ]; then
     hf download --repo-type dataset chenhegu/geo3k_imgurl --local-dir /root/datasets/geo3k_imgurl
 fi
 
 CKPT_ARGS=(
-   --hf-checkpoint /root/Qwen3-VL-8B-Instruct
-   --load /root/Qwen3-VL-8B-Instruct
+   --hf-checkpoint /root/models/Qwen3-VL-2B-Instruct
+   --load /root/models/Qwen3-VL-2B-Instruct
 )
 
 ROLLOUT_ARGS=(
@@ -112,7 +112,7 @@ SGLANG_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project geo3k-vlm-megatron
-   --wandb-group qwen3-vl-8b-geo3k
+   --wandb-group qwen3-vl-2b-geo3k
    --wandb-key ${WANDB_API_KEY}
    --disable-wandb-random-suffix
 )
@@ -128,6 +128,9 @@ MISC_ARGS=(
    
    # colocate training and rollout on same GPUs
    --colocate
+
+   # enable megatron bridge
+   --megatron-to-hf-mode bridge
 )
 
 NUM_GPUS=${SLIME_SCRIPT_NUM_GPUS:-8}
@@ -141,7 +144,7 @@ ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus ${NUM_GPUS} --disab
 # Build the runtime environment JSON with proper variable substitution
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
-    \"PYTHONPATH\": \"/root/tmp/Megatron-LM/\",
+    \"PYTHONPATH\": \"/root/Megatron-LM/\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\"
   }

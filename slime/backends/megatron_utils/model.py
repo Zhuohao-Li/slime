@@ -106,11 +106,11 @@ def setup_model_and_optimizer(
             - The learning-rate/weight-decay scheduler tied to the optimizer.
     """
     assert not args.moe_use_upcycling
-    bridge = getattr(args, "_bridge", None)
-    if bridge is None:
-        assert args.load is not None or args.pretrained_checkpoint is not None
+    assert args.load is not None or args.pretrained_checkpoint is not None
 
-    model = get_model(get_model_provider_func(args, role), ModelType.encoder_or_decoder)
+    model_provider = get_model_provider_func(args, role)
+    model_provider.finalize()
+    model = get_model(model_provider.provide, ModelType.encoder_or_decoder)
 
     # Optimizer
     kwargs = {}
@@ -353,6 +353,7 @@ def train_one_step(
             data_iterator,
             [
                 "tokens",
+                "multimodal_inputs",
                 "packed_seq_params",
                 "total_lengths",
                 "response_lengths",
@@ -430,6 +431,7 @@ def train_one_step(
                 labels=None,
                 packed_seq_params=batch["packed_seq_params"],
                 loss_mask=loss_mask,
+                **(batch["multimodal_inputs"] if batch["multimodal_inputs"] is not None else {}),
                 **(dict(mtp_kwargs=mtp_kwargs) if mtp_kwargs is not None else {}),
             )
 
