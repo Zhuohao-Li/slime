@@ -31,8 +31,8 @@ source "${SCRIPT_DIR}/models/qwen3-vl-8B.sh"
 
 # Download model and dataset if not present
 mkdir -p /root/models /root/datasets
-if [ ! -d "/root/models/Qwen3-VL-8B-Instruct" ]; then
-    hf download Qwen/Qwen3-VL-8B-Instruct --local-dir /root/models/Qwen3-VL-8B-Instruct
+if [ ! -d "/root/Qwen3-VL-8B-Instruct" ]; then
+    hf download Qwen/Qwen3-VL-8B-Instruct --local-dir /root/Qwen3-VL-8B-Instruct
 fi
 if [ ! -d "/root/datasets/geo3k_imgurl" ]; then
     hf download --repo-type dataset chenhegu/geo3k_imgurl --local-dir /root/datasets/geo3k_imgurl
