@@ -20,7 +20,7 @@ if ! echo "$VALID_MODELS" | grep -qw "$MODEL_NAME"; then
    exit 1
 fi
 
-MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')
+MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/\([0-9]\+\)b/\1B/g' | sed 's/-instruct$/-Instruct/')
 
 # External Ray flag
 if [ -z "$SLIME_SCRIPT_EXTERNAL_RAY" ] || [ "$SLIME_SCRIPT_EXTERNAL_RAY" = "0" ]; then
@@ -58,7 +58,7 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
-source "${SLIME_DIR}/scripts/models/${SLIME_SCRIPT_MODEL_NAME}.sh"
+source "${SLIME_DIR}/scripts/models/${MODEL_NAME_LOWER}.sh"
 
 # Download model and dataset
 mkdir -p /root/models /root/datasets
