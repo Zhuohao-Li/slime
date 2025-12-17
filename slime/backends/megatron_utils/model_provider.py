@@ -55,7 +55,12 @@ def get_model_provider_func(
 ):
     bridge = getattr(args, "_bridge", None)
     if bridge is not None:
-        return bridge.to_megatron_provider(load_weights=False)
+        provider = bridge.to_megatron_provider(load_weights=False)
+        
+        def model_provider(pre_process: bool = True, post_process: bool = True, vp_stage: int | None = None):
+            return provider.provide(pre_process=pre_process, post_process=post_process, vp_stage=vp_stage)
+        
+        return model_provider
 
     def model_provider(pre_process: bool = True, post_process: bool = True, vp_stage: int | None = None) -> GPTModel:
         """Builds the model.
