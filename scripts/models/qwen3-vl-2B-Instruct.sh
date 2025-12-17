@@ -1,5 +1,5 @@
 MODEL_ARGS=(
-   --model-name qwen3vl
+   --model-name Qwen3-VL-2B-Instruct
    --swiglu
    --num-layers 28
    --hidden-size 2048
