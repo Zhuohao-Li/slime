@@ -66,9 +66,8 @@ class MegatronTrainRayActor(TrainRayActor):
             if i == dist.get_rank():
                 self.hf_config = AutoConfig.from_pretrained(args.hf_checkpoint, trust_remote_code=True)
                 self.tokenizer = AutoTokenizer.from_pretrained(self.args.hf_checkpoint, trust_remote_code=True)
-                if getattr(args, "multimodal_keys", None):
-                    from megatron.bridge import AutoBridge
-                    args._bridge = AutoBridge.from_hf_pretrained(args.hf_checkpoint, trust_remote_code=True)
+                from megatron.bridge import AutoBridge
+                args._bridge = AutoBridge.from_hf_pretrained(args.hf_checkpoint, trust_remote_code=True)
             dist.barrier(group=get_gloo_group())
 
         if self.args.debug_rollout_only:
