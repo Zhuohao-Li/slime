@@ -61,11 +61,10 @@ ROLLOUT_ARGS=(
 MULTIMODAL_KEYS='{"image": "images"}'
 
 EVAL_ARGS=(
-#    --eval-interval 50
-#    --eval-prompt-data geo3k-test /root/datasets/geo3k_imgurl/test.parquet
-#    --n-samples-per-eval-prompt 1
-#    --eval-max-response-len 4096
-#    --eval-top-k 1
+   --eval-interval 30
+   --eval-prompt-data geo3k /root/datasets/geo3k_imgurl/test.parquet
+   --n-samples-per-eval-prompt 1
+   --eval-max-response-len 4096
 )
 
 GRPO_ARGS=(
