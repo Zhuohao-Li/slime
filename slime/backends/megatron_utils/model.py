@@ -108,9 +108,7 @@ def setup_model_and_optimizer(
     assert not args.moe_use_upcycling
     assert args.load is not None or args.pretrained_checkpoint is not None
 
-    model_provider = get_model_provider_func(args, role)
-    model_provider.finalize()
-    model = get_model(model_provider.provide, ModelType.encoder_or_decoder)
+    model = get_model(get_model_provider_func(args, role), ModelType.encoder_or_decoder)
 
     # Optimizer
     kwargs = {}
