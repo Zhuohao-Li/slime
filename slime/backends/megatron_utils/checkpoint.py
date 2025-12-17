@@ -51,8 +51,6 @@ def _load_checkpoint_hf(ddp_model, optimizer, args, load_path: str):
 
     logger.info(f"Load checkpoint from HuggingFace model into Megatron (path={load_path})")
 
-    # Use existing bridge if available, otherwise create a new one
-    # AutoBridge can handle all model types (regular LLM and VLM)
     bridge = getattr(args, "_bridge", None)
     if bridge is None:
         from megatron.bridge import AutoBridge
