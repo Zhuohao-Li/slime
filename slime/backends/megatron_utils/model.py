@@ -106,7 +106,11 @@ def setup_model_and_optimizer(
             - The learning-rate/weight-decay scheduler tied to the optimizer.
     """
     assert not args.moe_use_upcycling
-    assert args.load is not None or args.pretrained_checkpoint is not None
+    bridge = getattr(args, "_bridge", None)
+    if bridge is None:
+        assert args.load is not None or args.pretrained_checkpoint is not None
+    else:
+        pass
 
     model = get_model(get_model_provider_func(args, role), ModelType.encoder_or_decoder)
 
