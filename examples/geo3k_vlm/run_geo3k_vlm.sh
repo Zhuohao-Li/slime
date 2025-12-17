@@ -137,13 +137,6 @@ else
     WANDB_ARGS=()
 fi
 
-CI_ARGS=(
-   --ci-test
-   --ci-disable-kl-checker
-   # --ci-metric-checker-key eval/geo3k
-   # --ci-metric-checker-threshold 0.5
-)
-
 MISC_ARGS=(
    --colocate
 )
@@ -213,5 +206,4 @@ ray job submit --address="http://127.0.0.1:8265" \
    ${SGLANG_ARGS[@]} \
    ${WANDB_ARGS[@]} \
    ${BACKEND_ARGS[@]} \
-   ${MISC_ARGS[@]} \
-   ${CI_ARGS[@]}
+   ${MISC_ARGS[@]}
