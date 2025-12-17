@@ -87,6 +87,7 @@ ROLLOUT_ARGS=(
    --global-batch-size 512
 )
 
+# required for vlm datasets
 MULTIMODAL_KEYS='{"image": "images"}'
 
 EVAL_ARGS=(
