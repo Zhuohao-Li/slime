@@ -58,7 +58,7 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
-source "${SLIME_DIR}/scripts/models/${MODEL_NAME_LOWER}.sh"
+source "${SLIME_DIR}/scripts/models/${SLIME_SCRIPT_MODEL_NAME}.sh"
 
 # Download model and dataset
 mkdir -p /root/models /root/datasets
