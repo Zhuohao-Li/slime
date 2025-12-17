@@ -9,7 +9,9 @@
 # Configuration
 TRAIN_BACKEND=${SLIME_SCRIPT_TRAIN_BACKEND:-"megatron"}
 MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-4B-Instruct"}
+DATASET_NAME=${SLIME_SCRIPT_DATASET_NAME:-"chenhegu/geo3k_imgurl"}
 NUM_GPUS=${SLIME_SCRIPT_NUM_GPUS:-8}
+DATASET_LOCAL_NAME=$(basename "$DATASET_NAME")
 
 # Validate MODEL_NAME
 VALID_MODELS="Qwen2.5-VL-3B-Instruct Qwen3-VL-2B-Instruct Qwen3-VL-4B-Instruct Qwen3-VL-8B-Instruct"
@@ -56,15 +58,15 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
-source "${SLIME_DIR}/scripts/models/qwen3-vl-4B-Instruct.sh"
+source "${SLIME_DIR}/scripts/models/${MODEL_NAME_LOWER}.sh"
 
 # Download model and dataset
 mkdir -p /root/models /root/datasets
 if [ ! -d "/root/models/${MODEL_NAME}" ]; then
    hf download Qwen/${MODEL_NAME} --local-dir /root/models/${MODEL_NAME}
 fi
-if [ ! -d "/root/datasets/geo3k_imgurl" ]; then
-   hf download --repo-type dataset chenhegu/geo3k_imgurl --local-dir /root/datasets/geo3k_imgurl
+if [ ! -d "/root/datasets/${DATASET_LOCAL_NAME}" ]; then
+   hf download --repo-type dataset ${DATASET_NAME} --local-dir /root/datasets/${DATASET_LOCAL_NAME}
 fi
 
 # Common args
@@ -73,7 +75,7 @@ CKPT_ARGS=(
 )
 
 ROLLOUT_ARGS=(
-   --prompt-data /root/datasets/geo3k_imgurl/train.parquet
+   --prompt-data /root/datasets/${DATASET_LOCAL_NAME}/train.parquet
    --input-key problem
    --label-key answer
    --apply-chat-template
@@ -92,7 +94,7 @@ MULTIMODAL_KEYS='{"image": "images"}'
 
 EVAL_ARGS=(
    --eval-interval 20
-   --eval-prompt-data geo3k /root/datasets/geo3k_imgurl/test.parquet
+   --eval-prompt-data ${DATASET_LOCAL_NAME} /root/datasets/${DATASET_LOCAL_NAME}/test.parquet
    --n-samples-per-eval-prompt 1
    --eval-max-response-len 4096
 )
@@ -122,13 +124,18 @@ SGLANG_ARGS=(
    --sglang-cuda-graph-bs 1 2 4 8 16 24 32 40 48 56 64 72 80 88 96 104 112 120 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248 256
 )
 
-WANDB_ARGS=(
-   --use-wandb
-   --wandb-project slime-geo3k-vlm
-   --wandb-group ${MODEL_NAME_LOWER}-${TRAIN_BACKEND}
-   --wandb-key ${WANDB_API_KEY}
-   --disable-wandb-random-suffix
-)
+# Wandb args (only if WANDB_API_KEY is set)
+if [ -n "$WANDB_API_KEY" ]; then
+    WANDB_ARGS=(
+        --use-wandb
+        --wandb-project slime-geo3k-vlm
+        --wandb-group ${MODEL_NAME_LOWER}-${TRAIN_BACKEND}
+        --wandb-key ${WANDB_API_KEY}
+        --disable-wandb-random-suffix
+    )
+else
+    WANDB_ARGS=()
+fi
 
 CI_ARGS=(
    --ci-test

@@ -27,6 +27,7 @@ SLIME_SCRIPT_MODEL_NAME=Qwen3-VL-4B-Instruct ./examples/geo3k_vlm/run_geo3k_vlm.
 |---------------------|---------|-------------|
 | `SLIME_SCRIPT_TRAIN_BACKEND` | `megatron` | Training backend (`megatron` or `fsdp`) |
 | `SLIME_SCRIPT_MODEL_NAME` | `Qwen3-VL-2B-Instruct` | Model name |
+| `SLIME_SCRIPT_DATASET_NAME` | `chenhegu/geo3k_imgurl` | HuggingFace dataset name |
 | `SLIME_SCRIPT_NUM_GPUS` | `8` | Number of GPUs |
 | `SLIME_SCRIPT_EXTERNAL_RAY` | `0` | Use external Ray cluster (`1` to enable) |
 
