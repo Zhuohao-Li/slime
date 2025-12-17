@@ -57,6 +57,15 @@ def get_model_provider_func(
     if bridge is not None:
         provider = bridge.to_megatron_provider(load_weights=False)
         
+        from megatron.training.initialize import get_init_methods
+        
+        init_method, scaled_init_method = get_init_methods(args)
+        provider.init_method = init_method
+        provider.scaled_init_method = scaled_init_method
+        
+        if hasattr(provider, "finalize"):
+            provider.finalize()
+        
         def model_provider(pre_process: bool = True, post_process: bool = True, vp_stage: int | None = None):
             return provider.provide(pre_process=pre_process, post_process=post_process, vp_stage=vp_stage)
         
