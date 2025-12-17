@@ -30,7 +30,7 @@ source "${SCRIPT_DIR}/models/qwen3-30B-A3B.sh"
 CKPT_ARGS=(
    --hf-checkpoint /root/Qwen3-30B-A3B
    #--hf-checkpoint /root/Qwen3-30B-A3B-FP8
-   --ref-load /root/Qwen3-30B-A3B
+   --ref-load /root/Qwen3-30B-A3B_torch_dist
    --load /root/Qwen3-30B-A3B_slime/
    --save /root/Qwen3-30B-A3B_slime/
    --save-interval 20
@@ -132,7 +132,7 @@ ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus 8 --disable-usage-s
 # Build the runtime environment JSON with proper variable substitution
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
-    \"PYTHONPATH\": \"/root/tmp/Megatron-LM/\",
+    \"PYTHONPATH\": \"/root/Megatron-LM/\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\"
   }
