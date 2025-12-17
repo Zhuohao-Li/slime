@@ -8,7 +8,7 @@
 
 # Configuration
 TRAIN_BACKEND=${SLIME_SCRIPT_TRAIN_BACKEND:-"megatron"}
-MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-2B-Instruct"}
+MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-4B-Instruct"}
 NUM_GPUS=${SLIME_SCRIPT_NUM_GPUS:-8}
 
 # Validate MODEL_NAME
@@ -56,7 +56,7 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
-source "${SLIME_DIR}/scripts/models/qwen3-vl-2B-Instruct.sh"
+source "${SLIME_DIR}/scripts/models/qwen3-vl-4B-Instruct.sh"
 
 # Download model and dataset
 mkdir -p /root/models /root/datasets
