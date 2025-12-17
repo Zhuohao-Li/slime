@@ -1,9 +1,7 @@
 import logging
 import multiprocessing
-import os
 import random
 import time
-from glob import glob
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +21,7 @@ from slime.utils.metric_checker import MetricChecker
 from slime.utils.metric_utils import compute_pass_rate, compute_rollout_step, compute_statistics, dict_add_prefix
 from slime.utils.misc import load_function
 from slime.utils.ray_utils import Box
+from slime.utils.seqlen_balancing import get_seqlen_balanced_partitions
 from slime.utils.tracking_utils import init_tracking
 from slime.utils.types import Sample
 
@@ -44,8 +43,7 @@ class RolloutManager:
 
         self.args = args
         self.pg = pg
-        if args.prefill_num_servers is None:
-            _start_router(args)
+        _start_router(args)
         # TODO make args immutable
         init_tracking(args, primary=False, router_addr=f"http://{args.sglang_router_ip}:{args.sglang_router_port}")
         init_http_client(args)
@@ -67,11 +65,7 @@ class RolloutManager:
             num_gpu_per_engine = min(args.rollout_num_gpus_per_engine, args.num_gpus_per_node)
             num_engines = args.rollout_num_gpus // num_gpu_per_engine
             self.all_rollout_engines = [None] * num_engines
-        self.num_new_engines, prefill_and_decode = init_rollout_engines(args, pg, self.all_rollout_engines)
-        # When pd disaggregation is used, we need the prefill and decode urls to init router.
-        if args.prefill_num_servers is not None:
-            assert prefill_and_decode is not None
-            _start_router(args, prefill_and_decode)
+        self.num_new_engines = init_rollout_engines(args, pg, self.all_rollout_engines)
         self.nodes_per_engine = max(1, args.rollout_num_gpus_per_engine // args.num_gpus_per_node)
         self.rollout_engine_lock = Lock.options(num_cpus=1, num_gpus=0).remote()
 
@@ -104,11 +98,11 @@ class RolloutManager:
             self._save_debug_rollout_data(data, rollout_id=rollout_id, evaluation=False)
             _log_rollout_data(rollout_id, self.args, data, metrics, time.time() - start_time)
             data = self._convert_samples_to_train_data(data)
-            return Box(ray.put(data))
+            return self._split_train_data_by_dp(data, self.train_parallel_config["dp_size"])
         finally:
             if monitor_started:
                 self._health_monitor.stop()
-                self.num_new_engines, _ = init_rollout_engines(self.args, self.pg, self.all_rollout_engines)
+                self.num_new_engines = init_rollout_engines(self.args, self.pg, self.all_rollout_engines)
             else:
                 self.num_new_engines = 0
 
@@ -280,10 +274,63 @@ class RolloutManager:
 
         return train_data
 
+    def set_train_parallel_config(self, config: dict):
+        self.train_parallel_config = config
+
+    def _split_train_data_by_dp(self, data, dp_size):
+        """Split the train data by data parallel size."""
+        rollout_data = {}
+
+        if "prompt" in data:
+            rollout_data["prompt"] = data["prompt"]
+
+        total_lengths = [len(t) for t in data["tokens"]]
+        data["total_lengths"] = total_lengths
+
+        if self.args.balance_data:
+            partitions = get_seqlen_balanced_partitions(total_lengths, dp_size, equal_size=True)
+        else:
+            partitions = [range(i, len(total_lengths), dp_size) for i in range(dp_size)]
+
+        rollout_data_refs = []
+
+        for i in range(dp_size):
+            rollout_data = {}
+            partition = partitions[i]
+            rollout_data["partition"] = partition
+            for key in [
+                "tokens",
+                "multimodal_inputs",
+                "response_lengths",
+                "rewards",
+                "truncated",
+                "loss_masks",
+                "round_number",
+                "sample_indices",
+                "rollout_log_probs",
+                "rollout_routed_experts",
+                "prompt",
+                "teacher_log_probs",
+            ]:
+                if key not in data:
+                    continue
+                val = [data[key][j] for j in partition]
+                rollout_data[key] = val
+            # keys that need to be splited at train side
+            for key in [
+                "raw_reward",
+                "total_lengths",
+            ]:
+                if key not in data:
+                    continue
+                rollout_data[key] = data[key]
+            rollout_data_refs.append(Box(ray.put(rollout_data)))
+        return rollout_data_refs
+
 
 def init_rollout_engines(args, pg, all_rollout_engines):
     if args.debug_train_only:
-        return 0, None
+        return 0
 
     num_gpu_per_engine = min(args.rollout_num_gpus_per_engine, args.num_gpus_per_node)
     num_engines = args.rollout_num_gpus // num_gpu_per_engine
@@ -322,25 +369,6 @@ def init_rollout_engines(args, pg, all_rollout_engines):
             "SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION": "false",
         }
 
-        # TODO: currently the amem position is hardcoded, change to a better way later.
-        # note that amem does not work with update weights from distributed.
-        if (
-            args.offload_rollout
-            and args.actor_num_nodes * args.actor_num_gpus_per_node >= args.rollout_num_gpus
-            and len(glob("/usr/local/lib/python3.12/dist-packages/nvidia/nccl/lib/libamem_nccl.so*")) > 0
-        ):
-            logger.info("Enable AMEM for rollout engine.")
-            ld_library_path = (
-                os.environ.get("LD_LIBRARY_PATH", "") + ":/usr/local/lib/python3.12/dist-packages/nvidia/nccl/lib"
-            )
-            env_vars |= {
-                "LD_LIBRARY_PATH": ld_library_path,
-                "NCCL_CUMEM_ENABLE": "1",
-                "AMEM_ENABLE": "1",
-                "AMEM_GROUPID": "0",
-                "GMM_LOG": "2",
-            }
-
         worker_type = "regular"
         if args.prefill_num_servers is not None:
             if i < prefill_num_servers:
@@ -363,7 +391,7 @@ def init_rollout_engines(args, pg, all_rollout_engines):
     num_new_engines = len(rollout_engines)
 
     if num_new_engines == 0:
-        return num_new_engines, None
+        return num_new_engines
 
     if args.rollout_external:
         addr_and_ports = _allocate_rollout_engine_addr_and_ports_external(args=args, rollout_engines=rollout_engines)
@@ -377,24 +405,7 @@ def init_rollout_engines(args, pg, all_rollout_engines):
     init_handles = [engine.init.remote(**(addr_and_ports[rank])) for rank, engine in rollout_engines]
     ray.get(init_handles)
 
-    if args.prefill_num_servers is not None:
-        prefill_and_decode_urls = (
-            [
-                f"http://{addr_and_ports[i]['host']}:{addr_and_ports[i]['port']}"
-                for i in range(0, prefill_num_servers, args.rollout_num_gpus_per_engine // num_gpu_per_engine)
-                if "port" in addr_and_ports[i]
-            ],
-            [
-                f"http://{addr_and_ports[i]['host']}:{addr_and_ports[i]['port']}"
-                for i in range(
-                    prefill_num_servers, num_engines, args.rollout_num_gpus_per_engine // num_gpu_per_engine
-                )
-                if "port" in addr_and_ports[i]
-            ],
-        )
-    else:
-        prefill_and_decode_urls = None
-    return num_new_engines, prefill_and_decode_urls
+    return num_new_engines
 
 
 def _allocate_rollout_engine_addr_and_ports_external(args, rollout_engines):
@@ -491,7 +502,7 @@ def _start_router(args, prefill_and_decode_urls=None):
         args.sglang_router_port = find_available_port(random.randint(3000, 4000))
 
     if args.use_slime_router:
-        assert prefill_and_decode_urls is None
+        assert args.prefill_num_servers is None, "slime router does not support prefill_num_servers."
         from slime.router.router import run_router
 
         router_args = args
@@ -507,15 +518,8 @@ def _start_router(args, prefill_and_decode_urls=None):
         router_args.prometheus_port = find_available_port(random.randint(4000, 5000))
         router_args.log_level = "warn"
 
-        if prefill_and_decode_urls is not None:
-            prefill_urls, decode_urls = prefill_and_decode_urls
-            prefill_urls = [(url, None) for url in prefill_urls]
-            print(f"prefill urls: {prefill_urls}")
-            print(f"decode urls: {decode_urls}")
-
+        if args.prefill_num_servers is not None:
             router_args.pd_disaggregation = True
-            router_args.prefill_urls = prefill_urls
-            router_args.decode_urls = decode_urls
 
         if hasattr(router_args, "request_timeout_secs"):
             router_args.request_timeout_secs = args.sglang_router_request_timeout_secs

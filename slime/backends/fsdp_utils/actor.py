@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 from argparse import Namespace
 from itertools import accumulate
 
@@ -55,6 +56,10 @@ class FSDPTrainRayActor(TrainRayActor):
         self._setup_device_mesh()
         torch.manual_seed(args.seed)
 
+        self.train_parallel_config = {
+            "dp_size": self.dp_size,
+        }
+
         if self.args.debug_rollout_only:
             return 0
 
@@ -76,7 +81,8 @@ class FSDPTrainRayActor(TrainRayActor):
             if i == dist.get_rank():
                 self.hf_config = AutoConfig.from_pretrained(self.args.hf_checkpoint, trust_remote_code=True)
                 self.tokenizer = load_tokenizer(self.args.hf_checkpoint, trust_remote_code=True)
-                if self.args.multimodal_keys:
+                # Vision models have `vision_config` in the config
+                if hasattr(self.hf_config, "vision_config"):
                     self.processor = load_processor(self.args.hf_checkpoint, trust_remote_code=True)
             dist.barrier(group=get_gloo_group())
 
@@ -147,10 +153,11 @@ class FSDPTrainRayActor(TrainRayActor):
         return int(getattr(self.args, "start_rollout_id", 0))
 
     def get_model_cls(self):
-        if self.args.multimodal_keys:
-            from transformers import AutoModelForVision2Seq
+        # Vision models have `vision_config` in the config
+        if hasattr(self.hf_config, "vision_config"):
+            from transformers import AutoModelForImageTextToText
 
-            return AutoModelForVision2Seq
+            return AutoModelForImageTextToText
         else:
             from transformers import AutoModelForCausalLM
 
@@ -785,6 +792,15 @@ class FSDPTrainRayActor(TrainRayActor):
             dist.barrier(group=get_gloo_group())
 
         self.weight_updater.update_weights()
+
+        if self.args.ci_test and len(rollout_engines) > 0:
+            engine = random.choice(rollout_engines)
+            engine_version = ray.get(engine.get_weight_version.remote())
+            if str(engine_version) != str(self.weight_updater.weight_version):
+                raise RuntimeError(
+                    f"Weight version mismatch! Engine: {engine_version}, Updater: {self.weight_updater.weight_version}"
+                )
+
         clear_memory()
 
     def _create_ref_model(self, ref_load_path: str | None):

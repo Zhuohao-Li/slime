@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import socket
 from argparse import Namespace
 from contextlib import nullcontext
@@ -70,6 +71,16 @@ class MegatronTrainRayActor(TrainRayActor):
 
                 args._bridge = AutoBridge.from_hf_pretrained(args.hf_checkpoint, trust_remote_code=True)
             dist.barrier(group=get_gloo_group())
+
+        self.train_parallel_config = {
+            "dp_size": mpu.get_data_parallel_world_size(with_context_parallel=False),
+        }
+        dist.barrier(group=get_gloo_group())
+
+        if args.offload_train:
+            if (x := args.train_memory_margin_bytes) > 0:
+                logger.info(f"Set torch_memory_saver.memory_margin_bytes to {x}")
+                torch_memory_saver.memory_margin_bytes = x
 
         if self.args.debug_rollout_only:
             return 0
@@ -170,7 +181,7 @@ class MegatronTrainRayActor(TrainRayActor):
 
     def _get_rollout_data(self, rollout_data_ref: Box) -> RolloutBatch:
         # Fetch data through ray on CPU, not sure if this will be performance bottleneck.
-        # Both first pp stage and the last pp stage will recieve the data.
+        # Both first pp stage and the last pp stage will receive the data.
         rollout_data = process_rollout_data(
             self.args,
             rollout_data_ref,
@@ -476,6 +487,14 @@ class MegatronTrainRayActor(TrainRayActor):
             print_memory("before update_weights")
             self.weight_updater.update_weights()
             print_memory("after update_weights")
+
+            if self.args.ci_test and len(rollout_engines) > 0:
+                engine = random.choice(rollout_engines)
+                engine_version = ray.get(engine.get_weight_version.remote())
+                if str(engine_version) != str(self.weight_updater.weight_version):
+                    raise RuntimeError(
+                        f"Weight version mismatch! Engine: {engine_version}, Updater: {self.weight_updater.weight_version}"
+                    )
 
             if getattr(self.args, "keep_old_actor", False):
                 if self.args.update_weights_interval == 1:
