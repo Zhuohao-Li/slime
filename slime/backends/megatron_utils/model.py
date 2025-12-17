@@ -210,7 +210,14 @@ def forward_only(
 
         # Get the batch.
         batch = get_batch(
-            data_iterator, ["tokens", "total_lengths", "response_lengths"], args.data_pad_size_multiplier
+            data_iterator,
+            [
+                "tokens",
+                "multimodal_inputs",
+                "total_lengths",
+                "response_lengths",
+            ],
+            args.data_pad_size_multiplier,
         )
         unconcat_tokens = batch["unconcat_tokens"]
         tokens = batch["tokens"]
@@ -223,6 +230,7 @@ def forward_only(
             attention_mask=None,
             labels=None,
             packed_seq_params=packed_seq_params,
+            **(batch["multimodal_inputs"] if batch["multimodal_inputs"] is not None else {}),
         )
 
         return output_tensor, partial(
