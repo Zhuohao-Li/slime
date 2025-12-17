@@ -26,24 +26,24 @@ MODEL_ARGS=(
    # Vision model parameters (from vision_config)
    # Note: These parameters may be automatically loaded from HuggingFace config
    # by megatron-bridge provider, but are included here for explicit configuration
-   --patch-size 16
-   --temporal-patch-size 2
-   --spatial-merge-size 2
-   --num-position-embeddings 2304
-   --out-hidden-size 4096
+   # --patch-size 16
+   # --temporal-patch-size 2
+   # --spatial-merge-size 2
+   # --num-position-embeddings 2304
+   # --out-hidden-size 4096
    
    # Vision token IDs (from config.json root level)
-   --image-token-id 151655
-   --video-token-id 151656
-   --vision-start-token-id 151652
-   --vision-end-token-id 151653
-   --bos-token-id 151643
-   --eos-token-id 151645
+   # --image-token-id 151655
+   # --video-token-id 151656
+   # --vision-start-token-id 151652
+   # --vision-end-token-id 151653
+   # --bos-token-id 151643
+   # --eos-token-id 151645
    
    # Multimodal RoPE section [temporal, height, width]
    --mrope-section 24 20 20
    
    # Language max sequence length
-   --language-max-sequence-length 2048
+   # --language-max-sequence-length 2048
 )
 
