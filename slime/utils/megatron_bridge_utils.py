@@ -10,8 +10,8 @@ except ImportError:
 def patch_megatron_model(model):
     unwrapped_model = unwrap_model(model)[0]
     model_config = unwrapped_model.config
-    # assert not hasattr(model_config, "share_embeddings_and_output_weights")
-    model_config.share_embeddings_and_output_weights = unwrapped_model.share_embeddings_and_output_weights
+    if not hasattr(model_config, "share_embeddings_and_output_weights"):
+        model_config.share_embeddings_and_output_weights = unwrapped_model.share_embeddings_and_output_weights
 
     try:
         yield
