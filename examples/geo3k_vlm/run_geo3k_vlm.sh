@@ -73,7 +73,7 @@ fi
 CKPT_ARGS=(
    --hf-checkpoint /root/models/${MODEL_NAME}
    --ref-load /root/models/${MODEL_NAME}
-   --load /root/models/${MODEL_NAME}_slime/
+   --load /root/models/${MODEL_NAME}
 )
 
 SFT_ARGS=(
