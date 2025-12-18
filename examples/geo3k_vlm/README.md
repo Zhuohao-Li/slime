@@ -33,7 +33,6 @@ SLIME_SCRIPT_MODEL_NAME=Qwen3-VL-4B-Instruct ./examples/geo3k_vlm/run_geo3k_vlm.
 
 ### Supported Models
 
-- `Qwen2.5-VL-3B-Instruct`
 - `Qwen3-VL-2B-Instruct`
 - `Qwen3-VL-4B-Instruct`
 - `Qwen3-VL-8B-Instruct`
