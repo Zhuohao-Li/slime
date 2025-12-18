@@ -8,7 +8,7 @@
 
 # Configuration
 TRAIN_BACKEND=${SLIME_SCRIPT_TRAIN_BACKEND:-"megatron"}
-MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-30B-A3B-Instruct"}
+MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-8B-Instruct"}
 DATASET_NAME=${SLIME_SCRIPT_DATASET_NAME:-"chenhegu/geo3k_imgurl"}
 NUM_GPUS=${SLIME_SCRIPT_NUM_GPUS:-8}
 DATASET_LOCAL_NAME=$(basename "$DATASET_NAME")
@@ -83,11 +83,11 @@ ROLLOUT_ARGS=(
    --rollout-shuffle
    --rm-type math
    --num-rollout 3000
-   --rollout-batch-size 32
+   --rollout-batch-size 64
    --n-samples-per-prompt 8
    --rollout-max-response-len 4096
    --rollout-temperature 0.8
-   --global-batch-size 256
+   --global-batch-size 512
 )
 
 # required for vlm datasets
@@ -120,8 +120,8 @@ OPTIMIZER_ARGS=(
 )
 
 SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 8
-   --sglang-mem-fraction-static 0.7
+   --rollout-num-gpus-per-engine 1
+   --sglang-mem-fraction-static 0.6
    --sglang-cuda-graph-bs 1 2 4 8 16 24 32 40 48 56 64 72 80 88 96 104 112 120 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248 256
 )
 
@@ -160,7 +160,7 @@ else
       --sequence-parallel
       --pipeline-model-parallel-size 1
       --context-parallel-size 1
-      --expert-model-parallel-size 8
+      --expert-model-parallel-size 1
       --expert-tensor-parallel-size 1
       --recompute-granularity full
       --recompute-method uniform
