@@ -114,7 +114,6 @@ OPTIMIZER_ARGS=(
    --adam-beta2 0.95
 )
 
-# Wandb args (only if WANDB_API_KEY is set)
 if [ -n "$WANDB_API_KEY" ]; then
     WANDB_ARGS=(
         --use-wandb
