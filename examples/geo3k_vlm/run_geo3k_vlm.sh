@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Qwen3 VL RL training on geo3k dataset
+# Qwen3 VL SFT training on geo3k dataset
 # Supports both megatron and fsdp training backends
 # Usage: 
 #   SLIME_SCRIPT_TRAIN_BACKEND=fsdp ./run_geo3k_vlm.sh
@@ -8,7 +8,7 @@
 
 # Configuration
 TRAIN_BACKEND=${SLIME_SCRIPT_TRAIN_BACKEND:-"megatron"}
-MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-30B-A3B-Instruct"}
+MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-2B-Instruct"}
 DATASET_NAME=${SLIME_SCRIPT_DATASET_NAME:-"chenhegu/geo3k_imgurl"}
 NUM_GPUS=${SLIME_SCRIPT_NUM_GPUS:-8}
 DATASET_LOCAL_NAME=$(basename "$DATASET_NAME")
@@ -20,8 +20,7 @@ if ! echo "$VALID_MODELS" | grep -qw "$MODEL_NAME"; then
    exit 1
 fi
 
-# MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/\([0-9]\+\)b/\1B/g' | sed 's/-instruct$/-Instruct/')
-MODEL_NAME_LOWER="qwen3-vl-30B-A3B-Instruct"
+MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/\([0-9]\+\)b/\1B/g' | sed 's/-instruct$/-Instruct/')
 
 # External Ray flag
 if [ -z "$SLIME_SCRIPT_EXTERNAL_RAY" ] || [ "$SLIME_SCRIPT_EXTERNAL_RAY" = "0" ]; then
@@ -75,61 +74,49 @@ CKPT_ARGS=(
    --hf-checkpoint /root/models/${MODEL_NAME}
 )
 
-ROLLOUT_ARGS=(
+SFT_ARGS=(
+   --rollout-function-path slime.rollout.sft_rollout.generate_rollout
    --prompt-data /root/datasets/${DATASET_LOCAL_NAME}/train.parquet
    --input-key problem
    --label-key answer
    --apply-chat-template
    --rollout-shuffle
-   --rm-type math
-   --num-rollout 3000
+   --num-epoch 3
    --rollout-batch-size 32
-   --n-samples-per-prompt 8
-   --rollout-max-response-len 4096
-   --rollout-temperature 0.8
-   --global-batch-size 256
+   --global-batch-size 128
+   
+   --loss-type sft_loss
+   --calculate-per-token-loss
+   --disable-compute-advantages-and-returns
+   --debug-train-only
 )
 
 # required for vlm datasets
 MULTIMODAL_KEYS='{"image": "images"}'
 
 EVAL_ARGS=(
-   --eval-interval 20
+   --eval-interval 100
    --eval-prompt-data ${DATASET_LOCAL_NAME} /root/datasets/${DATASET_LOCAL_NAME}/test.parquet
    --n-samples-per-eval-prompt 1
    --eval-max-response-len 4096
 )
 
-GRPO_ARGS=(
-   --advantage-estimator grpo
-   --kl-loss-coef 0.00
-   --kl-loss-type low_var_kl
-   --kl-coef 0.00
-   --entropy-coef 0.00
-   --eps-clip 0.2
-   --eps-clip-high 0.28
-)
-
 OPTIMIZER_ARGS=(
    --optimizer adam
-   --lr 1e-6
-   --lr-decay-style constant
+   --lr 1e-5
+   --lr-decay-style cosine
+   --min-lr 1e-6
+   --lr-warmup-fraction 0.1
    --weight-decay 0.1
    --adam-beta1 0.9
-   --adam-beta2 0.98
-)
-
-SGLANG_ARGS=(
-   --rollout-num-gpus-per-engine 8
-   --sglang-mem-fraction-static 0.7
-   --sglang-cuda-graph-bs 1 2 4 8 16 24 32 40 48 56 64 72 80 88 96 104 112 120 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248 256
+   --adam-beta2 0.95
 )
 
 # Wandb args (only if WANDB_API_KEY is set)
 if [ -n "$WANDB_API_KEY" ]; then
     WANDB_ARGS=(
         --use-wandb
-        --wandb-project slime-geo3k-vlm
+        --wandb-project slime-geo3k-vlm-sft
         --wandb-group ${MODEL_NAME_LOWER}-${TRAIN_BACKEND}
         --wandb-key ${WANDB_API_KEY}
         --disable-wandb-random-suffix
@@ -138,16 +125,11 @@ else
     WANDB_ARGS=()
 fi
 
-MISC_ARGS=(
-   --colocate
-)
-
 # Backend-specific args
 if [ "$TRAIN_BACKEND" = "fsdp" ]; then
     BACKEND_ARGS=(
       --train-backend fsdp
       --gradient-checkpointing
-      --sglang-attention-backend fa3
       --attn-implementation flash_attention_3
       --update-weight-buffer-size 536870912
     )
@@ -156,11 +138,11 @@ else
     BACKEND_ARGS=(
       --train-backend megatron
       --load /root/models/${MODEL_NAME}
-      --tensor-model-parallel-size 4
+      --tensor-model-parallel-size 1
       --sequence-parallel
       --pipeline-model-parallel-size 1
       --context-parallel-size 1
-      --expert-model-parallel-size 8
+      --expert-model-parallel-size 1
       --expert-tensor-parallel-size 1
       --recompute-granularity full
       --recompute-method uniform
@@ -172,7 +154,6 @@ else
       --accumulate-allreduce-grads-in-fp32
       --attention-softmax-in-fp32
       --attention-backend flash
-      --megatron-to-hf-mode bridge
     )
 fi
 
@@ -194,17 +175,14 @@ RUNTIME_ENV_JSON="{
 
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json="${RUNTIME_ENV_JSON}" \
-   -- python3 train.py \
+   -- python3 train_async.py \
    --actor-num-nodes 1 \
    --actor-num-gpus-per-node ${NUM_GPUS} \
    --multimodal-keys "${MULTIMODAL_KEYS}" \
    ${MODEL_ARGS[@]} \
    ${CKPT_ARGS[@]} \
-   ${ROLLOUT_ARGS[@]} \
+   ${SFT_ARGS[@]} \
    ${EVAL_ARGS[@]} \
-   ${GRPO_ARGS[@]} \
    ${OPTIMIZER_ARGS[@]} \
-   ${SGLANG_ARGS[@]} \
    ${WANDB_ARGS[@]} \
-   ${BACKEND_ARGS[@]} \
-   ${MISC_ARGS[@]}
+   ${BACKEND_ARGS[@]}

@@ -1,8 +1,7 @@
 import logging
 
-from transformers import AutoTokenizer
-
 from slime.utils.mask_utils import MultiTurnLossMaskGenerator
+from slime.utils.processing_utils import load_processor, load_tokenizer, prepare_model_inputs
 
 __all__ = ["generate_rollout"]
 
@@ -10,12 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 TOKENIZER = None
+PROCESSOR = None
 MASK_GENERATOR = None
 SAMPLE_PRINTED = False
 
 
 def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
-    """An example to implement the generate_rollout function for an rule based rm rollout generation.
+    """An example to implement the generate_rollout function for SFT rollout generation.
+    Supports both text-only and multimodal (VLM) data.
 
     Args:
         args: the whole args
@@ -29,9 +30,18 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
     assert not evaluation
     assert args.rollout_global_dataset
 
-    global TOKENIZER, MASK_GENERATOR, SAMPLE_PRINTED
+    global TOKENIZER, PROCESSOR, MASK_GENERATOR, SAMPLE_PRINTED
+    
+    # Initialize tokenizer and processor
     if TOKENIZER is None:
-        TOKENIZER = AutoTokenizer.from_pretrained(args.hf_checkpoint, trust_remote_code=True)
+        TOKENIZER = load_tokenizer(args.hf_checkpoint, trust_remote_code=True)
+    
+    if PROCESSOR is None:
+        PROCESSOR = load_processor(args.hf_checkpoint, trust_remote_code=True)
+        if PROCESSOR:
+            logger.info("Loaded processor for VLM model")
+        else:
+            logger.info("No processor found, using text-only mode")
 
     if MASK_GENERATOR is None:
         MASK_GENERATOR = MultiTurnLossMaskGenerator(TOKENIZER, tokenizer_type=args.loss_mask_type)
@@ -41,7 +51,46 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
     for i, sample in enumerate(samples):
         (sample,) = sample
         messages = sample.prompt
+        
+        # Use prepare_model_inputs to handle both text-only and VLM data
+        # This function properly handles chat templates, images, videos, etc.
+        input_ids, extra_info = prepare_model_inputs(
+            messages,
+            TOKENIZER,
+            PROCESSOR,
+            sample.metadata if hasattr(sample, 'metadata') else None,
+            args.apply_chat_template,
+            args.apply_chat_template_kwargs,
+        )
+        
+        # Store multimodal inputs in sample if present
+        if extra_info.get("multimodal_inputs"):
+            sample.multimodal_inputs = extra_info["multimodal_inputs"]
+        
+        # Generate loss mask for SFT training
+        # The loss mask marks which tokens should be trained on (typically the assistant's response)
         token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
+        
+        # For VLM models, the input_ids from prepare_model_inputs includes image tokens,
+        # but the loss_mask from MASK_GENERATOR is based on text-only tokenization.
+        # We need to align them.
+        has_multimodal = bool(extra_info.get("images") or extra_info.get("videos"))
+        
+        if has_multimodal and len(input_ids) != len(loss_mask):
+            # Use input_ids from prepare_model_inputs (includes image tokens)
+            token_ids = input_ids
+            
+            # Adjust loss_mask to match the length with image tokens
+            # Image tokens should not contribute to loss (mask = 0)
+            diff = len(input_ids) - len(loss_mask)
+            if diff > 0:
+                # Prepend zeros for image tokens
+                loss_mask = [0] * diff + loss_mask
+            else:
+                # This shouldn't happen, but handle it gracefully
+                logger.warning(f"Unexpected: input_ids shorter than loss_mask by {-diff} tokens")
+                loss_mask = loss_mask[-len(input_ids):]
+        
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
 
         sample.tokens = token_ids
@@ -50,8 +99,16 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         sample.loss_mask = loss_mask[-response_length:]
 
         if i == 0 and not SAMPLE_PRINTED:
+            has_images = bool(extra_info.get("images"))
+            has_videos = bool(extra_info.get("videos"))
             logger.info(
-                f"sft_rollout::generate_rollout example data: {sample=} (raw){messages=} (raw){token_ids=} (raw){loss_mask=} {response_length=}"
+                f"sft_rollout::generate_rollout example data: "
+                f"messages={messages} | "
+                f"token_length={len(token_ids)} | "
+                f"response_length={response_length} | "
+                f"has_images={has_images} | "
+                f"has_videos={has_videos} | "
+                f"multimodal_inputs_keys={list(extra_info.get('multimodal_inputs', {}).keys())}"
             )
             SAMPLE_PRINTED = True
 
