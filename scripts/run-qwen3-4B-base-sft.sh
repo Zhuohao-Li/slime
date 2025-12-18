@@ -26,16 +26,10 @@ echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 source "${SCRIPT_DIR}/models/qwen3-4B.sh"
 
-
-mkdir -p /root/models /root/datasets
-if [ ! -d "/root/models/Qwen3-4B" ]; then
-   hf download Qwen/Qwen3-4B --local-dir /root/models/Qwen3-4B
-fi
-
 CKPT_ARGS=(
-   --hf-checkpoint /root/models/Qwen3-4B/
-   --ref-load /root/models/Qwen3-4B_torch_dist
-   --load /root/models/Qwen3-4B_slime/
+   --hf-checkpoint /root/models/Qwen3-4B-Base/
+   --ref-load /root/models/Qwen3-4B-Base_torch_dist
+   --load /root/models/Qwen3-4B-Base_slime/
 )
 
 SFT_ARGS=(
