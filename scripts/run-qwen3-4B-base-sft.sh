@@ -34,8 +34,8 @@ fi
 
 CKPT_ARGS=(
    --hf-checkpoint /root/models/Qwen3-4B/
-   --ref-load /root/models/Qwen3-4B
-   --load /root/models/Qwen3-4B/
+   --ref-load /root/models/Qwen3-4B_torch_dist
+   --load /root/models/Qwen3-4B_slime/
 )
 
 SFT_ARGS=(
