@@ -72,7 +72,8 @@ fi
 # Common args
 CKPT_ARGS=(
    --hf-checkpoint /root/models/${MODEL_NAME}
-   --pretrained-checkpoint /root/models/${MODEL_NAME}
+   --ref-load /root/models/${MODEL_NAME}
+   --load /root/models/${MODEL_NAME}_slime/
 )
 
 SFT_ARGS=(
@@ -138,7 +139,6 @@ else
     # megatron backend (default)
     BACKEND_ARGS=(
       --train-backend megatron
-      --load /root/models/${MODEL_NAME}
       --tensor-model-parallel-size 1
       --sequence-parallel
       --pipeline-model-parallel-size 1
