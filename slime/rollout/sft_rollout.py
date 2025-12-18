@@ -67,31 +67,61 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         if extra_info.get("multimodal_inputs"):
             sample.multimodal_inputs = extra_info["multimodal_inputs"]
         
-        # Generate loss mask for SFT training
-        # The loss mask marks which tokens should be trained on (typically the assistant's response)
-        token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
-        
-        # For VLM models, the input_ids from prepare_model_inputs includes image tokens,
-        # but the loss_mask from MASK_GENERATOR is based on text-only tokenization.
-        # We need to align them.
+        # For VLM models, we need to create a text-only version of messages for loss mask generation
+        # because MASK_GENERATOR doesn't understand multimodal content format
         has_multimodal = bool(extra_info.get("images") or extra_info.get("videos"))
         
-        if has_multimodal and len(input_ids) != len(loss_mask):
+        if has_multimodal:
+            # Create text-only version of messages for mask generation
+            text_only_messages = []
+            for msg in messages:
+                if isinstance(msg.get("content"), list):
+                    # Extract text from multimodal content
+                    text_parts = []
+                    for item in msg["content"]:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            text_parts.append(item.get("text", ""))
+                        elif isinstance(item, str):
+                            text_parts.append(item)
+                    text_only_messages.append({
+                        "role": msg["role"],
+                        "content": " ".join(text_parts)
+                    })
+                else:
+                    text_only_messages.append(msg)
+            
+            # Generate loss mask using text-only messages
+            _, loss_mask_text = MASK_GENERATOR.get_loss_mask(text_only_messages)
+            
             # Use input_ids from prepare_model_inputs (includes image tokens)
             token_ids = input_ids
             
             # Adjust loss_mask to match the length with image tokens
             # Image tokens should not contribute to loss (mask = 0)
-            diff = len(input_ids) - len(loss_mask)
+            diff = len(input_ids) - len(loss_mask_text)
             if diff > 0:
-                # Prepend zeros for image tokens
-                loss_mask = [0] * diff + loss_mask
-            else:
+                # Prepend zeros for image tokens at the beginning
+                loss_mask = [0] * diff + loss_mask_text
+            elif diff < 0:
                 # This shouldn't happen, but handle it gracefully
-                logger.warning(f"Unexpected: input_ids shorter than loss_mask by {-diff} tokens")
-                loss_mask = loss_mask[-len(input_ids):]
+                logger.warning(f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens")
+                loss_mask = loss_mask_text[-len(input_ids):]
+            else:
+                loss_mask = loss_mask_text
+        else:
+            # Text-only processing
+            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
         
+        # Calculate response length from loss mask
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
+        
+        # Validate that we have a valid response
+        if response_length == 0:
+            logger.error(
+                f"Response length is 0! messages={messages}, "
+                f"loss_mask_sum={sum(loss_mask)}, loss_mask_len={len(loss_mask)}"
+            )
+            raise ValueError("Response length cannot be 0 for SFT training")
 
         sample.tokens = token_ids
         sample.response_length = response_length
@@ -106,6 +136,7 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
                 f"messages={messages} | "
                 f"token_length={len(token_ids)} | "
                 f"response_length={response_length} | "
+                f"loss_mask_sum={sum(loss_mask)} | "
                 f"has_images={has_images} | "
                 f"has_videos={has_videos} | "
                 f"multimodal_inputs_keys={list(extra_info.get('multimodal_inputs', {}).keys())}"
