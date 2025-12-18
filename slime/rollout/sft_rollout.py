@@ -52,6 +52,23 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         (sample,) = sample
         messages = sample.prompt
         
+        # For SFT training, we need both user question and assistant answer
+        # Check if the data has the label (answer) and construct a complete conversation
+        if hasattr(sample, 'label') and sample.label is not None:
+            # If messages is already a list with user message, add assistant response
+            if isinstance(messages, list) and len(messages) > 0:
+                # Check if there's already an assistant message
+                has_assistant = any(msg.get("role") == "assistant" for msg in messages)
+                if not has_assistant:
+                    # Add assistant's response from label
+                    messages = messages + [{"role": "assistant", "content": sample.label}]
+            else:
+                # messages is a string, convert to full conversation
+                messages = [
+                    {"role": "user", "content": messages if isinstance(messages, str) else str(messages)},
+                    {"role": "assistant", "content": sample.label}
+                ]
+        
         # Use prepare_model_inputs to handle both text-only and VLM data
         # This function properly handles chat templates, images, videos, etc.
         input_ids, extra_info = prepare_model_inputs(
@@ -119,9 +136,10 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         if response_length == 0:
             logger.error(
                 f"Response length is 0! messages={messages}, "
-                f"loss_mask_sum={sum(loss_mask)}, loss_mask_len={len(loss_mask)}"
+                f"loss_mask_sum={sum(loss_mask)}, loss_mask_len={len(loss_mask)}, "
+                f"has_label={hasattr(sample, 'label')}, label={sample.label if hasattr(sample, 'label') else 'N/A'}"
             )
-            raise ValueError("Response length cannot be 0 for SFT training")
+            raise ValueError("Response length cannot be 0 for SFT training. Make sure your dataset has answer/label field.")
 
         sample.tokens = token_ids
         sample.response_length = response_length
