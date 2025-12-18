@@ -83,11 +83,11 @@ ROLLOUT_ARGS=(
    --rollout-shuffle
    --rm-type math
    --num-rollout 3000
-   --rollout-batch-size 64
+   --rollout-batch-size 32
    --n-samples-per-prompt 8
    --rollout-max-response-len 4096
    --rollout-temperature 0.8
-   --global-batch-size 512
+   --global-batch-size 256
 )
 
 # required for vlm datasets
