@@ -72,6 +72,7 @@ fi
 # Common args
 CKPT_ARGS=(
    --hf-checkpoint /root/models/${MODEL_NAME}
+   --pretrained-checkpoint /root/models/${MODEL_NAME}
 )
 
 SFT_ARGS=(
