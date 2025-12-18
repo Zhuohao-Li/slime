@@ -52,25 +52,18 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         (sample,) = sample
         messages = sample.prompt
         
-        # For SFT training, we need both user question and assistant answer
         # Check if the data has the label (answer) and construct a complete conversation
         if hasattr(sample, 'label') and sample.label is not None:
-            # If messages is already a list with user message, add assistant response
             if isinstance(messages, list) and len(messages) > 0:
-                # Check if there's already an assistant message
                 has_assistant = any(msg.get("role") == "assistant" for msg in messages)
                 if not has_assistant:
-                    # Add assistant's response from label
                     messages = messages + [{"role": "assistant", "content": sample.label}]
             else:
-                # messages is a string, convert to full conversation
                 messages = [
                     {"role": "user", "content": messages if isinstance(messages, str) else str(messages)},
                     {"role": "assistant", "content": sample.label}
                 ]
         
-        # Use prepare_model_inputs to handle both text-only and VLM data
-        # This function properly handles chat templates, images, videos, etc.
         input_ids, extra_info = prepare_model_inputs(
             messages,
             TOKENIZER,
@@ -80,20 +73,15 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
             args.apply_chat_template_kwargs,
         )
         
-        # Store multimodal inputs in sample if present
         if extra_info.get("multimodal_inputs"):
             sample.multimodal_inputs = extra_info["multimodal_inputs"]
         
-        # For VLM models, we need to create a text-only version of messages for loss mask generation
-        # because MASK_GENERATOR doesn't understand multimodal content format
         has_multimodal = bool(extra_info.get("images") or extra_info.get("videos"))
         
         if has_multimodal:
-            # Create text-only version of messages for mask generation
             text_only_messages = []
             for msg in messages:
                 if isinstance(msg.get("content"), list):
-                    # Extract text from multimodal content
                     text_parts = []
                     for item in msg["content"]:
                         if isinstance(item, dict) and item.get("type") == "text":
@@ -107,32 +95,23 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
                 else:
                     text_only_messages.append(msg)
             
-            # Generate loss mask using text-only messages
             _, loss_mask_text = MASK_GENERATOR.get_loss_mask(text_only_messages)
             
-            # Use input_ids from prepare_model_inputs (includes image tokens)
             token_ids = input_ids
             
-            # Adjust loss_mask to match the length with image tokens
-            # Image tokens should not contribute to loss (mask = 0)
             diff = len(input_ids) - len(loss_mask_text)
             if diff > 0:
-                # Prepend zeros for image tokens at the beginning
                 loss_mask = [0] * diff + loss_mask_text
             elif diff < 0:
-                # This shouldn't happen, but handle it gracefully
                 logger.warning(f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens")
                 loss_mask = loss_mask_text[-len(input_ids):]
             else:
                 loss_mask = loss_mask_text
         else:
-            # Text-only processing
             token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
         
-        # Calculate response length from loss mask
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
         
-        # Validate that we have a valid response
         if response_length == 0:
             logger.error(
                 f"Response length is 0! messages={messages}, "
