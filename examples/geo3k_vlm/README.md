@@ -26,7 +26,7 @@ SLIME_SCRIPT_MODEL_NAME=Qwen3-VL-4B-Instruct ./examples/geo3k_vlm/run_geo3k_vlm.
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `SLIME_SCRIPT_TRAIN_BACKEND` | `megatron` | Training backend (`megatron` or `fsdp`) |
-| `SLIME_SCRIPT_MODEL_NAME` | `Qwen3-VL-2B-Instruct` | Model name |
+| `SLIME_SCRIPT_MODEL_NAME` | `Qwen3-VL-8B-Instruct` | Model name |
 | `SLIME_SCRIPT_DATASET_NAME` | `chenhegu/geo3k_imgurl` | HuggingFace dataset name |
 | `SLIME_SCRIPT_NUM_GPUS` | `8` | Number of GPUs |
 | `SLIME_SCRIPT_EXTERNAL_RAY` | `0` | Use external Ray cluster (`1` to enable) |
@@ -36,7 +36,10 @@ SLIME_SCRIPT_MODEL_NAME=Qwen3-VL-4B-Instruct ./examples/geo3k_vlm/run_geo3k_vlm.
 - `Qwen3-VL-2B-Instruct`
 - `Qwen3-VL-4B-Instruct`
 - `Qwen3-VL-8B-Instruct`
-
+- `Qwen3-VL-2B-Thinking`
+- `Qwen3-VL-4B-Thinking`
+- `Qwen3-VL-8B-Thinking`
+- 
 ## Notes
 
 ### Reward Model Configuration
