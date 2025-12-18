@@ -155,6 +155,7 @@ else
       --accumulate-allreduce-grads-in-fp32
       --attention-softmax-in-fp32
       --attention-backend flash
+      --megatron-to-hf-mode bridge
     )
 fi
 
