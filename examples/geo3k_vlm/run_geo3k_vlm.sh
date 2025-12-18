@@ -84,8 +84,8 @@ SFT_ARGS=(
    --apply-chat-template
    --rollout-shuffle
    --num-epoch 3
-   --rollout-batch-size 128
-   --global-batch-size 128
+   --rollout-batch-size 32
+   --global-batch-size 32
    
    --loss-type sft_loss
    --calculate-per-token-loss
