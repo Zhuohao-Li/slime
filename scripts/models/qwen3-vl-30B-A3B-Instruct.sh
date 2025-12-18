@@ -1,3 +1,17 @@
+NLAYERS=48
+FIRST_K_DENSE_REPLACE=0
+
+arr=()
+for ((i=0; i<NLAYERS; i++)); do
+  if (( i < FIRST_K_DENSE_REPLACE )); then
+    arr+=(0)
+  else
+    arr+=(1)
+  fi
+done
+
+printf -v MOE_LAYER_FREQ "[%s]" "$(IFS=', '; echo "${arr[*]}")"
+
 MODEL_ARGS=(
    --model-name Qwen3-VL-30B-A3B-Instruct
    --swiglu
@@ -21,6 +35,14 @@ MODEL_ARGS=(
 
    # moe
    --moe-ffn-hidden-size 768
+   --moe-router-score-function softmax
+   --moe-token-dispatcher-type alltoall
    --moe-router-topk 8
+   --moe-layer-freq $MOE_LAYER_FREQ
    --num-experts 128
+   --moe-grouped-gemm
+   --moe-token-drop-policy probs
+   --moe-router-dtype fp32
+   --moe-permute-fusion
+   --moe-aux-loss-coeff 0
 )
