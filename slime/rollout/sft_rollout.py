@@ -1,8 +1,7 @@
 import logging
 
-from transformers import AutoTokenizer
-
 from slime.utils.mask_utils import MultiTurnLossMaskGenerator
+from slime.utils.processing_utils import load_processor, load_tokenizer, prepare_model_inputs
 
 __all__ = ["generate_rollout"]
 
@@ -10,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 TOKENIZER = None
+PROCESSOR = None
 MASK_GENERATOR = None
 SAMPLE_PRINTED = False
 
@@ -29,9 +29,16 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
     assert not evaluation
     assert args.rollout_global_dataset
 
-    global TOKENIZER, MASK_GENERATOR, SAMPLE_PRINTED
+    global TOKENIZER, PROCESSOR, MASK_GENERATOR, SAMPLE_PRINTED
     if TOKENIZER is None:
-        TOKENIZER = AutoTokenizer.from_pretrained(args.hf_checkpoint, trust_remote_code=True)
+        TOKENIZER = load_tokenizer(args.hf_checkpoint, trust_remote_code=True)
+    
+    if PROCESSOR is None:
+        PROCESSOR = load_processor(args.hf_checkpoint, trust_remote_code=True)
+        if PROCESSOR:
+            logger.info("Loaded processor for VLM model")
+        else:
+            logger.info("Using text-only mode")
 
     if MASK_GENERATOR is None:
         MASK_GENERATOR = MultiTurnLossMaskGenerator(TOKENIZER, tokenizer_type=args.loss_mask_type)
@@ -43,7 +50,73 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         messages = sample.prompt
         tools = sample.metadata.get("tools", None)
         token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages, tools=tools)
+        
+        if hasattr(sample, 'label') and sample.label is not None:
+            if isinstance(messages, list) and len(messages) > 0:
+                has_assistant = any(msg.get("role") == "assistant" for msg in messages)
+                if not has_assistant:
+                    messages = messages + [{"role": "assistant", "content": sample.label}]
+            else:
+                messages = [
+                    {"role": "user", "content": messages if isinstance(messages, str) else str(messages)},
+                    {"role": "assistant", "content": sample.label}
+                ]
+        
+        input_ids, extra_info = prepare_model_inputs(
+            messages,
+            TOKENIZER,
+            PROCESSOR,
+            sample.metadata if hasattr(sample, 'metadata') else None,
+            args.apply_chat_template,
+            args.apply_chat_template_kwargs,
+        )
+        
+        if extra_info.get("multimodal_inputs"):
+            sample.multimodal_inputs = extra_info["multimodal_inputs"]
+        
+        has_multimodal = bool(extra_info.get("images") or extra_info.get("videos"))
+        
+        if has_multimodal:
+            text_only_messages = []
+            for msg in messages:
+                if isinstance(msg.get("content"), list):
+                    text_parts = []
+                    for item in msg["content"]:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            text_parts.append(item.get("text", ""))
+                        elif isinstance(item, str):
+                            text_parts.append(item)
+                    text_only_messages.append({
+                        "role": msg["role"],
+                        "content": " ".join(text_parts)
+                    })
+                else:
+                    text_only_messages.append(msg)
+            
+            _, loss_mask_text = MASK_GENERATOR.get_loss_mask(text_only_messages)
+            
+            token_ids = input_ids
+            
+            diff = len(input_ids) - len(loss_mask_text)
+            if diff > 0:
+                loss_mask = [0] * diff + loss_mask_text
+            elif diff < 0:
+                logger.warning(f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens")
+                loss_mask = loss_mask_text[-len(input_ids):]
+            else:
+                loss_mask = loss_mask_text
+        else:
+            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
+        
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
+        
+        if response_length == 0:
+            logger.error(
+                f"Response length is 0! messages={messages}, "
+                f"loss_mask_sum={sum(loss_mask)}, loss_mask_len={len(loss_mask)}, "
+                f"has_label={hasattr(sample, 'label')}, label={sample.label if hasattr(sample, 'label') else 'N/A'}"
+            )
+            raise ValueError("Response length cannot be 0 for SFT training. Make sure your dataset has answer/label field.")
 
         sample.tokens = token_ids
         sample.response_length = response_length
@@ -51,8 +124,17 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         sample.loss_mask = loss_mask[-response_length:]
 
         if i == 0 and not SAMPLE_PRINTED:
+            has_images = bool(extra_info.get("images"))
+            has_videos = bool(extra_info.get("videos"))
             logger.info(
-                f"sft_rollout::generate_rollout example data: {sample=} (raw){messages=} (raw){token_ids=} (raw){loss_mask=} {response_length=}"
+                f"sft_rollout::generate_rollout example data: "
+                f"messages={messages} | "
+                f"token_length={len(token_ids)} | "
+                f"response_length={response_length} | "
+                f"loss_mask_sum={sum(loss_mask)} | "
+                f"has_images={has_images} | "
+                f"has_videos={has_videos} | "
+                f"multimodal_inputs_keys={list(extra_info.get('multimodal_inputs', {}).keys())}"
             )
             SAMPLE_PRINTED = True
 
