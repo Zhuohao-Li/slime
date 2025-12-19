@@ -76,6 +76,7 @@ PERF_ARGS=(
    # --micro-batch-size 1
    --use-dynamic-batch-size
    --max-tokens-per-gpu 20480
+   --megatron-to-hf-mode bridge
 )
 
 GRPO_ARGS=(
