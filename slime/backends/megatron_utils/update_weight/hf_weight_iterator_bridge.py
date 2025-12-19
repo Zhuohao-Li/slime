@@ -52,6 +52,7 @@ class HfWeightIteratorBridge(HfWeightIteratorBase):
     def _gather_expert_weights_across_ep(self, megatron_local_weights):
         """
         Gather expert weights from all EP ranks so each rank has all experts.
+        Uses memory-efficient approach: gather to CPU first, then move to CUDA only when needed.
         megatron-bridge's _megatron_local_name_to_global only adjusts indices in names,
         but doesn't gather the actual weights across EP ranks.
         """
@@ -80,33 +81,60 @@ class HfWeightIteratorBridge(HfWeightIteratorBase):
         
         # Gather expert weight metadata (names and shapes) from all EP ranks
         local_expert_metadata = {
-            name: (param.shape, param.dtype) for name, param in expert_weights.items()
+            name: (param.shape, param.dtype, param.device) for name, param in expert_weights.items()
         }
         all_expert_metadata = [None] * ep_size
         dist.all_gather_object(all_expert_metadata, local_expert_metadata, group=ep_group)
         
-        # Gather expert weights: each rank broadcasts its expert weights to all other ranks
+        # Group expert weights by layer to process in batches and reduce peak memory
+        # Extract layer number from name for grouping
+        def get_layer_key(name):
+            match = re.search(r'\.layers\.(\d+)\.', name)
+            return int(match.group(1)) if match else -1
+        
+        # Group metadata by layer
+        layer_groups = {}
+        for ep_rank_idx, rank_metadata in enumerate(all_expert_metadata):
+            for name, (shape, dtype, device) in rank_metadata.items():
+                layer_key = get_layer_key(name)
+                if layer_key not in layer_groups:
+                    layer_groups[layer_key] = []
+                layer_groups[layer_key].append((ep_rank_idx, name, shape, dtype))
+        
+        # Process layer by layer to reduce peak memory
+        # This reduces peak memory from (all experts) to (one layer's experts)
         gathered_expert_weights = {}
         
-        for ep_rank_idx, rank_metadata in enumerate(all_expert_metadata):
-            src_rank = ep_group_ranks[ep_rank_idx]
-            expert_offset = ep_rank_idx * self.args.num_experts // ep_size
+        for layer_key in sorted(layer_groups.keys()):
+            layer_experts = layer_groups[layer_key]
             
-            for name, (shape, dtype) in rank_metadata.items():
+            # Gather experts for this layer
+            for ep_rank_idx, name, shape, dtype in layer_experts:
+                src_rank = ep_group_ranks[ep_rank_idx]
+                expert_offset = ep_rank_idx * self.args.num_experts // ep_size
+                
                 # Adjust expert index to global
                 adjusted_name = self._adjust_expert_index_to_global(name, expert_offset)
                 
-                # Get or create tensor
+                # Get or create tensor on CUDA (required for NCCL)
                 if dist.get_rank() == src_rank:
-                    # This rank owns the weight
+                    # This rank owns the weight - ensure on CUDA
                     weight = expert_weights[name]
+                    if not weight.is_cuda:
+                        weight = weight.cuda()
                 else:
-                    # Create empty tensor with correct shape to receive the weight
+                    # Create empty tensor on CUDA to receive the weight
                     weight = torch.empty(shape, dtype=dtype, device=torch.cuda.current_device())
                 
                 # Broadcast weight from source rank
                 dist.broadcast(weight, src=src_rank, group=ep_group)
                 gathered_expert_weights[adjusted_name] = weight
+            
+            # Clear intermediate variables and free GPU memory after each layer
+            # This helps reduce peak memory usage
+            del layer_experts
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         
         # Combine non-expert and gathered expert weights
         result = non_expert_weights.copy()
@@ -140,7 +168,9 @@ def _process_conversion_tasks(vanilla_conversion_tasks, new_weight_dict):
         ), f"{weight_dict_key=} not in new_weight_dict ({task.vp_stage=}, {task.param_name=}, {list(new_weight_dict)=})"
 
         new_param_weight = new_weight_dict[weight_dict_key]
-        new_param_weight = new_param_weight.cuda()
+        # Move to CUDA if not already there (handles CPU offloaded weights)
+        if not new_param_weight.is_cuda:
+            new_param_weight = new_param_weight.cuda()
         return dataclasses.replace(task, param_weight=new_param_weight)
 
     return _MapWithLen(_handle_one, vanilla_conversion_tasks)
