@@ -20,7 +20,6 @@ class HfWeightIteratorBridge(HfWeightIteratorBase):
     def get_hf_weight_chunks(self, megatron_local_weights):
         # TODO support quantization (e.g. modify megatron-bridge to provide megatron param name)
         renamed_megatron_local_weights = {strip_param_name_prefix(k): v for k, v in megatron_local_weights.items()}
-        
         with megatron_bridge_utils.patch_megatron_model(self.model):
             conversion_tasks = self._bridge.get_conversion_tasks(self.model)
             conversion_tasks = _process_conversion_tasks(conversion_tasks, renamed_megatron_local_weights)
@@ -41,7 +40,6 @@ class HfWeightIteratorBridge(HfWeightIteratorBase):
             )
 
             yield from chunk_named_params_by_size(named_weights, chunk_size=self.args.update_weight_buffer_size)
-
 
 
 def _process_conversion_tasks(vanilla_conversion_tasks, new_weight_dict):
