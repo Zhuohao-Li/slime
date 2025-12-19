@@ -30,7 +30,7 @@ source "${SCRIPT_DIR}/models/qwen3-30B-A3B.sh"
 CKPT_ARGS=(
    --hf-checkpoint /root/models/Qwen3-30B-A3B
    #--hf-checkpoint /root/Qwen3-30B-A3B-FP8
-   # --ref-load /root/models/Qwen3-30B-A3B_torch_dist
+   --ref-load /root/models/Qwen3-30B-A3B
    --load /root/models/Qwen3-30B-A3B/
    # --save /root/models/Qwen3-30B-A3B_slime/
    # --save-interval 20
