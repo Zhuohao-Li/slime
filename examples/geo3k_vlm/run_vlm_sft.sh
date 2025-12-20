@@ -22,7 +22,6 @@ VALID_MODELS="
   Qwen3-VL-4B-Thinking
   Qwen3-VL-8B-Thinking
 "
-
 if ! echo "$VALID_MODELS" | grep -qw "$MODEL_NAME"; then
    echo "Error: MODEL_NAME must be one of: $VALID_MODELS"
    exit 1
@@ -69,9 +68,6 @@ else
 fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
-SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
-source "${SLIME_DIR}/scripts/models/${MODEL_NAME_LOWER}.sh"
-
 # Download model and dataset
 mkdir -p /root/models /root/datasets
 if [ ! -d "/root/models/${MODEL_NAME}" ]; then
@@ -84,7 +80,6 @@ fi
 # Common args
 CKPT_ARGS=(
    --hf-checkpoint /root/models/${MODEL_NAME}
-   --ref-load /root/models/${MODEL_NAME}
    --load /root/models/${MODEL_NAME}
 )
 
