@@ -14,13 +14,25 @@ NUM_GPUS=${SLIME_SCRIPT_NUM_GPUS:-8}
 DATASET_LOCAL_NAME=$(basename "$DATASET_NAME")
 
 # Validate MODEL_NAME
-VALID_MODELS="Qwen2.5-VL-3B-Instruct Qwen3-VL-2B-Instruct Qwen3-VL-4B-Instruct Qwen3-VL-8B-Instruct Qwen3-VL-30B-A3B-Instruct"
+VALID_MODELS="
+  Qwen3-VL-2B-Instruct
+  Qwen3-VL-4B-Instruct
+  Qwen3-VL-8B-Instruct
+  Qwen3-VL-2B-Thinking
+  Qwen3-VL-4B-Thinking
+  Qwen3-VL-8B-Thinking
+"
+
 if ! echo "$VALID_MODELS" | grep -qw "$MODEL_NAME"; then
    echo "Error: MODEL_NAME must be one of: $VALID_MODELS"
    exit 1
 fi
 
-MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/\([0-9]\+\)b/\1B/g' | sed 's/-instruct$/-Instruct/')
+MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')
+
+SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
+MODEL_ARGS_FILE=$(echo "$MODEL_NAME_LOWER" | sed 's/-instruct//g; s/-thinking//g')
+source "${SLIME_DIR}/scripts/models/${MODEL_ARGS_FILE}.sh"
 
 # External Ray flag
 if [ -z "$SLIME_SCRIPT_EXTERNAL_RAY" ] || [ "$SLIME_SCRIPT_EXTERNAL_RAY" = "0" ]; then
