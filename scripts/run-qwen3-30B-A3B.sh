@@ -28,20 +28,19 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 source "${SCRIPT_DIR}/models/qwen3-30B-A3B.sh"
 
 CKPT_ARGS=(
-   --hf-checkpoint /root/models/Qwen3-30B-A3B
+   --hf-checkpoint /root/Qwen3-30B-A3B
    #--hf-checkpoint /root/Qwen3-30B-A3B-FP8
-   --ref-load /root/models/Qwen3-30B-A3B_torch_dist
-   --load /root/models/Qwen3-30B-A3B_slime/
-   # --save /root/models/Qwen3-30B-A3B_slime/
-   # --save-interval 20
+   --ref-load /root/Qwen3-30B-A3B_torch_dist
+   --load /root/Qwen3-30B-A3B_slime/
+   --save /root/Qwen3-30B-A3B_slime/
+   --save-interval 20
 )
 
 ROLLOUT_ARGS=(
-   --prompt-data /root/datasets/dapo-math-17k/dapo-math-17k.jsonl
+   --prompt-data /root/dapo-math-17k/dapo-math-17k.jsonl
    --input-key prompt
    --label-key label
    --apply-chat-template
-   --apply-chat-template-kwargs '{"enable_thinking":false}'
    --rollout-shuffle
    --rm-type deepscaler
    --num-rollout 3000
@@ -55,11 +54,11 @@ ROLLOUT_ARGS=(
 )
 
 EVAL_ARGS=(
-   # --eval-interval 20
-   # --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
-   # --n-samples-per-eval-prompt 16
-   # --eval-max-response-len 16384
-   # --eval-top-p 0.7
+   --eval-interval 20
+   --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
+   --n-samples-per-eval-prompt 16
+   --eval-max-response-len 16384
+   --eval-top-p 0.7
 )
 
 PERF_ARGS=(
@@ -103,10 +102,10 @@ OPTIMIZER_ARGS=(
 )
 
 WANDB_ARGS=(
-   --use-wandb
-   --wandb-project slime-bug
-   --wandb-group qwen3-30B-A3B
-   --wandb-key ${WANDB_API_KEY}
+   #--use-wandb
+   # --wandb-project slime-dev
+   # --wandb-group qwen3-30B-A3B-test
+   # --wandb-key ${WANDB_KEY}
 )
 
 SGLANG_ARGS=(
