@@ -106,7 +106,7 @@ WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-bug
    --wandb-group qwen3-30B-A3B
-   --wandb-key ${WANDB_APIKEY}
+   --wandb-key ${WANDB_API_KEY}
 )
 
 SGLANG_ARGS=(
