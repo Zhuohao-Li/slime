@@ -1,5 +1,7 @@
 import logging
 
+from transformers import AutoTokenizer
+
 from slime.utils.mask_utils import MultiTurnLossMaskGenerator
 from slime.utils.processing_utils import load_processor, load_tokenizer, prepare_model_inputs
 
