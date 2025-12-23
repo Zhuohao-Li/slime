@@ -28,7 +28,14 @@ def format_answer(answer: str) -> str:
 
 # Format the answer field
 def process_sample(sample):
-    sample["answer"] = format_answer(sample["answer"])
+    # 格式化 answer
+    formatted_answer = f"Answer: \\boxed{{{sample['answer']}}}"
+    
+    # 构建完整的 messages 格式
+    sample["messages"] = [
+        {"role": "user", "content": sample["problem"]},
+        {"role": "assistant", "content": formatted_answer}
+    ]
     return sample
 
 ds = ds.map(process_sample)

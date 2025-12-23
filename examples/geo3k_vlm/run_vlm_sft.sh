@@ -12,6 +12,10 @@ VALID_MODELS="
   Qwen3-VL-2B-Thinking
   Qwen3-VL-4B-Thinking
   Qwen3-VL-8B-Thinking
+  Qwen3-VL-30B-A3B-Instruct
+  Qwen3-VL-235B-A22B-Instruct
+  Qwen3-VL-30B-A3B-Thinking
+  Qwen3-VL-235B-A22B-Thinking
 "
 if ! echo "$VALID_MODELS" | grep -qw "$MODEL_NAME"; then
    echo "Error: MODEL_NAME must be one of: $VALID_MODELS"
@@ -90,12 +94,6 @@ SFT_ARGS=(
 # required for vlm datasets
 MULTIMODAL_KEYS='{"image": "images"}'
 
-EVAL_ARGS=(
-   --eval-interval 100
-   --eval-prompt-data ${DATASET_LOCAL_NAME} /root/datasets/${DATASET_LOCAL_NAME}/test.parquet
-   --n-samples-per-eval-prompt 1
-   --eval-max-response-len 4096
-)
 
 OPTIMIZER_ARGS=(
    --optimizer adam
