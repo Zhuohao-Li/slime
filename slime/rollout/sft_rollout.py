@@ -47,16 +47,6 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         metadata = getattr(sample, 'metadata', None) or {}
         tools = metadata.get("tools")
         
-        if getattr(sample, 'label', None):
-            if isinstance(messages, list) and messages:
-                if not any(msg.get("role") == "assistant" for msg in messages):
-                    messages = messages + [{"role": "assistant", "content": sample.label}]
-            else:
-                messages = [
-                    {"role": "user", "content": messages if isinstance(messages, str) else str(messages)},
-                    {"role": "assistant", "content": sample.label}
-                ]
-        
         input_ids, extra_info = prepare_model_inputs(
             messages, TOKENIZER, PROCESSOR, metadata,
             args.apply_chat_template, args.apply_chat_template_kwargs
@@ -70,8 +60,6 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         )
         
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
-        if response_length == 0:
-            raise ValueError("Response length cannot be 0 for SFT training. Make sure your dataset has answer/label field.")
 
         sample.tokens = token_ids
         sample.response_length = response_length
