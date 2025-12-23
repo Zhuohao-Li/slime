@@ -78,37 +78,9 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         
         has_multimodal = bool(extra_info.get("images") or extra_info.get("videos"))
         
-        if has_multimodal:
-            text_only_messages = []
-            for msg in messages:
-                if isinstance(msg.get("content"), list):
-                    text_parts = []
-                    for item in msg["content"]:
-                        if isinstance(item, dict) and item.get("type") == "text":
-                            text_parts.append(item.get("text", ""))
-                        elif isinstance(item, str):
-                            text_parts.append(item)
-                    text_only_messages.append({
-                        "role": msg["role"],
-                        "content": " ".join(text_parts)
-                    })
-                else:
-                    text_only_messages.append(msg)
-            
-            _, loss_mask_text = MASK_GENERATOR.get_loss_mask(text_only_messages)
-            
-            token_ids = input_ids
-            
-            diff = len(input_ids) - len(loss_mask_text)
-            if diff > 0:
-                loss_mask = [0] * diff + loss_mask_text
-            elif diff < 0:
-                logger.warning(f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens")
-                loss_mask = loss_mask_text[-len(input_ids):]
-            else:
-                loss_mask = loss_mask_text
-        else:
-            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages)
+        token_ids, loss_mask = MASK_GENERATOR.get_loss_mask_with_multimodal_alignment(
+            messages, input_ids, has_multimodal
+        )
         
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
         

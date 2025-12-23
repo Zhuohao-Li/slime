@@ -138,6 +138,61 @@ class MultiTurnLossMaskGenerator:
         else:
             raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
 
+    def get_loss_mask_with_multimodal_alignment(
+        self, messages: list[dict], input_ids: list[int], has_multimodal: bool
+    ) -> tuple[list[int], list[int]]:
+        """Get loss mask with proper alignment for multimodal inputs.
+        
+        For multimodal inputs, the input_ids contain image tokens that are not present
+        in the text-only messages. This method extracts text from messages, computes
+        text-only loss mask, and aligns it with the full input_ids.
+        
+        Args:
+            messages: Original messages (may contain multimodal content).
+            input_ids: Full input_ids from processor (includes image tokens if multimodal).
+            has_multimodal: Whether the input contains multimodal data.
+            
+        Returns:
+            Tuple of (token_ids, loss_mask) where loss_mask is aligned with input_ids.
+        """
+        if has_multimodal:
+            from slime.utils.processing_utils import extract_text_from_messages
+            
+            text_only_messages = extract_text_from_messages(messages)
+            _, loss_mask_text = self._get_loss_mask_internal(text_only_messages)
+            
+            diff = len(input_ids) - len(loss_mask_text)
+            if diff > 0:
+                # Image tokens at the beginning should have mask=0 (no loss)
+                loss_mask = [0] * diff + loss_mask_text
+            elif diff < 0:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens. "
+                    f"Truncating loss_mask to match input_ids length."
+                )
+                loss_mask = loss_mask_text[-len(input_ids):]
+            else:
+                loss_mask = loss_mask_text
+            
+            return input_ids, loss_mask
+        else:
+            return self._get_loss_mask_internal(messages)
+    
+    def _get_loss_mask_internal(self, messages: list[dict]) -> tuple[list[int], list[int]]:
+        """Internal method that returns both token_ids and loss_mask."""
+        if self.tokenizer_type == "qwen":
+            if "<｜Assistant｜>" in self.tokenizer.get_added_vocab():
+                return self.gen_multi_turn_loss_mask_distill_qwen(messages)
+            return self.gen_multi_turn_loss_mask_qwen(messages)
+        elif self.tokenizer_type == "qwen3":
+            return self.gen_multi_turn_loss_mask_qwen3(messages)
+        elif self.tokenizer_type == "distill_qwen":
+            return self.gen_multi_turn_loss_mask_distill_qwen(messages)
+        else:
+            raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
+
     def get_text_from_loss_mask(self, token_ids: list[int], loss_masks: list[int]) -> list[str]:
         selected_texts = []
         current_tokens = []

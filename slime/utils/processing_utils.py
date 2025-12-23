@@ -82,6 +82,33 @@ def prepare_model_inputs(
         return input_ids, extra_info
 
 
+def extract_text_from_messages(messages: list[dict]) -> list[dict]:
+    """Extract text-only content from messages that may contain multimodal content.
+    
+    Args:
+        messages: List of message dicts, where content may be a list with multimodal items.
+        
+    Returns:
+        List of message dicts with text-only content.
+    """
+    text_only_messages = []
+    for msg in messages:
+        if isinstance(msg.get("content"), list):
+            text_parts = []
+            for item in msg["content"]:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_parts.append(item.get("text", ""))
+                elif isinstance(item, str):
+                    text_parts.append(item)
+            text_only_messages.append({
+                "role": msg["role"],
+                "content": " ".join(text_parts)
+            })
+        else:
+            text_only_messages.append(msg)
+    return text_only_messages
+
+
 def encode_image_for_rollout_engine(image) -> str:
     """Load an image from path, ensure RGB, encode as JPEG base64 string."""
     buffer = io.BytesIO()
