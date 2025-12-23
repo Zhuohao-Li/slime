@@ -139,7 +139,7 @@ class MultiTurnLossMaskGenerator:
             raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
 
     def get_loss_mask_with_multimodal_alignment(
-        self, messages: list[dict], input_ids: list[int], has_multimodal: bool
+        self, messages: list[dict], input_ids: list[int], has_multimodal: bool, tools: list[dict] = None
     ) -> tuple[list[int], list[int]]:
         """Get loss mask with proper alignment for multimodal inputs.
         
@@ -151,6 +151,7 @@ class MultiTurnLossMaskGenerator:
             messages: Original messages (may contain multimodal content).
             input_ids: Full input_ids from processor (includes image tokens if multimodal).
             has_multimodal: Whether the input contains multimodal data.
+            tools: Optional tools for chat template.
             
         Returns:
             Tuple of (token_ids, loss_mask) where loss_mask is aligned with input_ids.
@@ -159,7 +160,7 @@ class MultiTurnLossMaskGenerator:
             from slime.utils.processing_utils import extract_text_from_messages
             
             text_only_messages = extract_text_from_messages(messages)
-            _, loss_mask_text = self._get_loss_mask_internal(text_only_messages)
+            _, loss_mask_text = self._get_loss_mask_internal(text_only_messages, tools=tools)
             
             diff = len(input_ids) - len(loss_mask_text)
             if diff > 0:
@@ -178,18 +179,18 @@ class MultiTurnLossMaskGenerator:
             
             return input_ids, loss_mask
         else:
-            return self._get_loss_mask_internal(messages)
+            return self._get_loss_mask_internal(messages, tools=tools)
     
-    def _get_loss_mask_internal(self, messages: list[dict]) -> tuple[list[int], list[int]]:
+    def _get_loss_mask_internal(self, messages: list[dict], tools: list[dict] = None) -> tuple[list[int], list[int]]:
         """Internal method that returns both token_ids and loss_mask."""
         if self.tokenizer_type == "qwen":
             if "<｜Assistant｜>" in self.tokenizer.get_added_vocab():
-                return self.gen_multi_turn_loss_mask_distill_qwen(messages)
-            return self.gen_multi_turn_loss_mask_qwen(messages)
+                return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
+            return self.gen_multi_turn_loss_mask_qwen(messages, tools)
         elif self.tokenizer_type == "qwen3":
-            return self.gen_multi_turn_loss_mask_qwen3(messages)
+            return self.gen_multi_turn_loss_mask_qwen3(messages, tools)
         elif self.tokenizer_type == "distill_qwen":
-            return self.gen_multi_turn_loss_mask_distill_qwen(messages)
+            return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
         else:
             raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
 

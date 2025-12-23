@@ -1,7 +1,5 @@
 import logging
 
-from transformers import AutoTokenizer
-
 from slime.utils.mask_utils import MultiTurnLossMaskGenerator
 from slime.utils.processing_utils import load_processor, load_tokenizer, prepare_model_inputs
 
@@ -37,10 +35,6 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
     
     if PROCESSOR is None:
         PROCESSOR = load_processor(args.hf_checkpoint, trust_remote_code=True)
-        if PROCESSOR:
-            logger.info("Loaded processor for VLM model")
-        else:
-            logger.info("Using text-only mode")
 
     if MASK_GENERATOR is None:
         MASK_GENERATOR = MultiTurnLossMaskGenerator(TOKENIZER, tokenizer_type=args.loss_mask_type)
@@ -50,13 +44,12 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
     for i, sample in enumerate(samples):
         (sample,) = sample
         messages = sample.prompt
-        tools = sample.metadata.get("tools", None)
-        token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages, tools=tools)
+        metadata = getattr(sample, 'metadata', None) or {}
+        tools = metadata.get("tools")
         
-        if hasattr(sample, 'label') and sample.label is not None:
-            if isinstance(messages, list) and len(messages) > 0:
-                has_assistant = any(msg.get("role") == "assistant" for msg in messages)
-                if not has_assistant:
+        if getattr(sample, 'label', None):
+            if isinstance(messages, list) and messages:
+                if not any(msg.get("role") == "assistant" for msg in messages):
                     messages = messages + [{"role": "assistant", "content": sample.label}]
             else:
                 messages = [
@@ -65,31 +58,19 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
                 ]
         
         input_ids, extra_info = prepare_model_inputs(
-            messages,
-            TOKENIZER,
-            PROCESSOR,
-            sample.metadata if hasattr(sample, 'metadata') else None,
-            args.apply_chat_template,
-            args.apply_chat_template_kwargs,
+            messages, TOKENIZER, PROCESSOR, metadata,
+            args.apply_chat_template, args.apply_chat_template_kwargs
         )
         
         if extra_info.get("multimodal_inputs"):
             sample.multimodal_inputs = extra_info["multimodal_inputs"]
         
-        has_multimodal = bool(extra_info.get("images") or extra_info.get("videos"))
-        
         token_ids, loss_mask = MASK_GENERATOR.get_loss_mask_with_multimodal_alignment(
-            messages, input_ids, has_multimodal
+            messages, input_ids, bool(extra_info.get("images") or extra_info.get("videos")), tools=tools
         )
         
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
-        
         if response_length == 0:
-            logger.error(
-                f"Response length is 0! messages={messages}, "
-                f"loss_mask_sum={sum(loss_mask)}, loss_mask_len={len(loss_mask)}, "
-                f"has_label={hasattr(sample, 'label')}, label={sample.label if hasattr(sample, 'label') else 'N/A'}"
-            )
             raise ValueError("Response length cannot be 0 for SFT training. Make sure your dataset has answer/label field.")
 
         sample.tokens = token_ids
@@ -98,17 +79,8 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         sample.loss_mask = loss_mask[-response_length:]
 
         if i == 0 and not SAMPLE_PRINTED:
-            has_images = bool(extra_info.get("images"))
-            has_videos = bool(extra_info.get("videos"))
             logger.info(
-                f"sft_rollout::generate_rollout example data: "
-                f"messages={messages} | "
-                f"token_length={len(token_ids)} | "
-                f"response_length={response_length} | "
-                f"loss_mask_sum={sum(loss_mask)} | "
-                f"has_images={has_images} | "
-                f"has_videos={has_videos} | "
-                f"multimodal_inputs_keys={list(extra_info.get('multimodal_inputs', {}).keys())}"
+                f"sft_rollout::generate_rollout example data: {sample=} (raw){messages=} (raw){token_ids=} (raw){loss_mask=} {response_length=}"
             )
             SAMPLE_PRINTED = True
 
