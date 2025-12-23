@@ -160,7 +160,7 @@ class MultiTurnLossMaskGenerator:
             from slime.utils.processing_utils import extract_text_from_messages
             
             text_only_messages = extract_text_from_messages(messages)
-            _, loss_mask_text = self._get_loss_mask_internal(text_only_messages, tools=tools)
+            _, loss_mask_text = self.get_loss_mask(text_only_messages, tools=tools)
             
             diff = len(input_ids) - len(loss_mask_text)
             if diff > 0:
