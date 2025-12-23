@@ -6,6 +6,39 @@ Training VLMs with FSDP or Megatron on single-turn reasoning task using GRPO on 
   <img src="fsdp_vs_megatron.png" alt="FSDP vs Megatron Reward Plot" width="800">
 </p>
 
+## Data Preparation
+
+### For SFT Training
+
+The [geo3k_imgurl](https://huggingface.co/datasets/chenhegu/geo3k_imgurl) dataset contains:
+- `problem`: The math problem text (string)
+- `answer`: The answer (string, e.g., "270")
+- `images`: Image data (list)
+
+**Important**: For SFT training, you need to format the `answer` field to match the user's requirements. The user prompt typically asks for "step by step" solutions and `\boxed{}` format, but the raw `answer` field only contains the numeric answer.
+
+You can use the following script to format the answer field:
+
+```python
+from datasets import load_dataset
+import pandas as pd
+
+# Load the dataset
+ds = load_dataset("chenhegu/geo3k_imgurl", split="train")
+
+def format_answer(answer: str) -> str:
+    """Format answer to include \\boxed{} format."""
+    return f"Answer: \\boxed{{{answer}}}"
+
+# Format the answer field
+def process_sample(sample):
+    sample["answer"] = format_answer(sample["answer"])
+    return sample
+
+ds = ds.map(process_sample)
+ds.to_parquet("/root/datasets/geo3k_imgurl/train_formatted.parquet")
+```
+
 ## Reproduce
 
 ```bash
