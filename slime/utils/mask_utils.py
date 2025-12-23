@@ -160,18 +160,11 @@ class MultiTurnLossMaskGenerator:
         _, loss_mask_text = self.get_loss_mask(text, tools=tools)
         
         diff = len(input_ids) - len(loss_mask_text)
-        if diff > 0:
-            loss_mask = [0] * diff + loss_mask_text
-        elif diff < 0:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens. "
-                f"Truncating loss_mask to match input_ids length."
-            )
-            loss_mask = loss_mask_text[-len(input_ids):]
-        else:
-            loss_mask = loss_mask_text
+        assert diff >= 0, (
+            f"input_ids (length={len(input_ids)}) is shorter than text loss_mask (length={len(loss_mask_text)}) "
+            f"Please check if processor and tokenizer tokenization are consistent."
+        )
+        loss_mask = [0] * diff + loss_mask_text
         
         return input_ids, loss_mask
     
