@@ -6,18 +6,14 @@ Training VLMs with FSDP or Megatron on single-turn reasoning task using GRPO on 
   <img src="fsdp_vs_megatron.png" alt="FSDP vs Megatron Reward Plot" width="800">
 </p>
 
-## Data Preparation
-
-### For SFT Training
+## Data Preparation (For SFT Training)
 
 The [geo3k_imgurl](https://huggingface.co/datasets/chenhegu/geo3k_imgurl) dataset contains:
 - `problem`: The math problem text (string)
 - `answer`: The answer (string, e.g., "270")
 - `images`: Image data (list)
 
-**Important**: For SFT training, you need to format the `answer` field to match the user's requirements. The user prompt typically asks for "step by step" solutions and `\boxed{}` format, but the raw `answer` field only contains the numeric answer.
-
-You can use the following script to format the answer field:
+For SFT training, we need to format the `answer` field for `\boxed{}` format. You can use the following script to format the answer field:
 
 ```python
 from datasets import load_dataset
@@ -52,6 +48,9 @@ SLIME_SCRIPT_TRAIN_BACKEND=fsdp ./examples/geo3k_vlm/run_geo3k_vlm.sh
 
 # With different model
 SLIME_SCRIPT_MODEL_NAME=Qwen3-VL-4B-Instruct ./examples/geo3k_vlm/run_geo3k_vlm.sh
+
+# SFT
+./examples/geo_3k_vlm/run_geo3k_vlm_sft.sh
 ```
 
 ### Configuration

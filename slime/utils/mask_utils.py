@@ -125,7 +125,7 @@ class MultiTurnLossMaskGenerator:
             loss_mask = [0] * len(token_ids)
         return token_ids, loss_mask
 
-    def get_loss_mask(self, messages: list[dict], tools: list[dict] = None) -> list[int]:
+    def get_loss_mask(self, messages: list[dict], tools: list[dict] = None) -> tuple[list[int], list[int]]:
         if self.tokenizer_type == "qwen":
             if "<｜Assistant｜>" in self.tokenizer.get_added_vocab():
                 return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
@@ -179,21 +179,8 @@ class MultiTurnLossMaskGenerator:
             
             return input_ids, loss_mask
         else:
-            return self._get_loss_mask_internal(messages, tools=tools)
+            return self.get_loss_mask(messages, tools=tools)
     
-    def _get_loss_mask_internal(self, messages: list[dict], tools: list[dict] = None) -> tuple[list[int], list[int]]:
-        """Internal method that returns both token_ids and loss_mask."""
-        if self.tokenizer_type == "qwen":
-            if "<｜Assistant｜>" in self.tokenizer.get_added_vocab():
-                return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
-            return self.gen_multi_turn_loss_mask_qwen(messages, tools)
-        elif self.tokenizer_type == "qwen3":
-            return self.gen_multi_turn_loss_mask_qwen3(messages, tools)
-        elif self.tokenizer_type == "distill_qwen":
-            return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
-        else:
-            raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
-
     def get_text_from_loss_mask(self, token_ids: list[int], loss_masks: list[int]) -> list[str]:
         selected_texts = []
         current_tokens = []
