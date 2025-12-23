@@ -1,14 +1,5 @@
-#!/bin/bash
-
-# Qwen3 VL SFT training on geo3k dataset
-# Supports both megatron and fsdp training backends
-# Usage: 
-#   SLIME_SCRIPT_TRAIN_BACKEND=fsdp ./run_geo3k_vlm.sh
-#   SLIME_SCRIPT_MODEL_NAME=Qwen3-VL-2B-Instruct ./run_geo3k_vlm.sh
-
-# Configuration
 TRAIN_BACKEND=${SLIME_SCRIPT_TRAIN_BACKEND:-"megatron"}
-MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-2B-Instruct"}
+MODEL_NAME=${SLIME_SCRIPT_MODEL_NAME:-"Qwen3-VL-8B-Instruct"}
 DATASET_NAME=${SLIME_SCRIPT_DATASET_NAME:-"chenhegu/geo3k_imgurl"}
 NUM_GPUS=${SLIME_SCRIPT_NUM_GPUS:-8}
 DATASET_LOCAL_NAME=$(basename "$DATASET_NAME")
@@ -28,10 +19,6 @@ if ! echo "$VALID_MODELS" | grep -qw "$MODEL_NAME"; then
 fi
 
 MODEL_NAME_LOWER=$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')
-
-SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
-MODEL_ARGS_FILE=$(echo "$MODEL_NAME_LOWER" | sed 's/-instruct//g; s/-thinking//g')
-source "${SLIME_DIR}/scripts/models/${MODEL_ARGS_FILE}.sh"
 
 # External Ray flag
 if [ -z "$SLIME_SCRIPT_EXTERNAL_RAY" ] || [ "$SLIME_SCRIPT_EXTERNAL_RAY" = "0" ]; then
@@ -81,6 +68,7 @@ fi
 CKPT_ARGS=(
    --hf-checkpoint /root/models/${MODEL_NAME}
    --load /root/models/${MODEL_NAME}
+   --rotary-base 5000000
 )
 
 SFT_ARGS=(
@@ -90,7 +78,7 @@ SFT_ARGS=(
    --label-key answer
    --apply-chat-template
    --rollout-shuffle
-   --num-epoch 3
+   --num-epoch 3000
    --rollout-batch-size 32
    --global-batch-size 32
    
@@ -145,7 +133,7 @@ else
     # megatron backend (default)
     BACKEND_ARGS=(
       --train-backend megatron
-      --tensor-model-parallel-size 1
+      --tensor-model-parallel-size 4
       --sequence-parallel
       --pipeline-model-parallel-size 1
       --context-parallel-size 1
@@ -163,6 +151,11 @@ else
       --attention-backend flash
       --megatron-to-hf-mode bridge
     )
+
+   # get MODEL_ARGS from scripts/models for megatron backend
+   SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
+   MODEL_ARGS_FILE=$(echo "$MODEL_NAME" | sed 's/-Instruct//g; s/-Thinking//g; s/Qwen3-VL-/qwen3-/g; s/-2B/-1.7B/g')
+   source "${SLIME_DIR}/scripts/models/${MODEL_ARGS_FILE}.sh"
 fi
 
 # Start Ray if not using external Ray
