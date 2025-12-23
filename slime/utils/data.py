@@ -149,17 +149,6 @@ class Dataset:
                 assert isinstance(tools, list), f"tools must be a list, got {type(tools)} instead"
                 metadata["tools"] = tools
 
-            # label = data[label_key] if label_key is not None else None
-            # if label is not None and as_conversation:
-            #     if isinstance(prompt, list) and prompt:
-            #         if not any(msg.get("role") == "assistant" for msg in prompt):
-            #             prompt = prompt + [{"role": "assistant", "content": label}]
-            #     elif isinstance(prompt, str):
-            #         prompt = [
-            #             {"role": "user", "content": prompt},
-            #             {"role": "assistant", "content": label}
-            #         ]
-
             # TODO: this is slow.
             if _should_skip_prompt(
                 prompt, tokenizer, processor, metadata, max_length, apply_chat_template, apply_chat_template_kwargs
@@ -169,7 +158,7 @@ class Dataset:
             self.origin_samples.append(
                 Sample(
                     prompt=prompt,
-                    label = data[label_key] if label_key is not None else None,
+                    label=data[label_key] if label_key is not None else None,
                     metadata=metadata,
                 )
             )
