@@ -141,14 +141,26 @@ class MultiTurnLossMaskGenerator:
     def get_loss_mask_with_multimodal_alignment(
         self, messages: list[dict], input_ids: list[int], tools: list[dict] = None
     ) -> tuple[list[int], list[int]]:
-        from slime.utils.processing_utils import extract_text_from_messages
+        text = []
+        for msg in messages:
+            if isinstance(msg.get("content"), list):
+                text_parts = []
+                for item in msg["content"]:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                text.append({
+                    "role": msg["role"],
+                    "content": " ".join(text_parts)
+                })
+            else:
+                text.append(msg)
         
-        text_only_messages = extract_text_from_messages(messages)
-        _, loss_mask_text = self.get_loss_mask(text_only_messages, tools=tools)
+        _, loss_mask_text = self.get_loss_mask(text, tools=tools)
         
         diff = len(input_ids) - len(loss_mask_text)
         if diff > 0:
-            # Image tokens at the beginning should have mask=0 (no loss)
             loss_mask = [0] * diff + loss_mask_text
         elif diff < 0:
             import logging
