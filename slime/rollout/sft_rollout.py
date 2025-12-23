@@ -44,20 +44,21 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
     for i, sample in enumerate(samples):
         (sample,) = sample
         messages = sample.prompt
-        metadata = getattr(sample, 'metadata', None) or {}
-        tools = metadata.get("tools")
+        tools = sample.metadata.get("tools", None)
         
         input_ids, extra_info = prepare_model_inputs(
-            messages, TOKENIZER, PROCESSOR, metadata,
+            messages, TOKENIZER, PROCESSOR, sample.metadata,
             args.apply_chat_template, args.apply_chat_template_kwargs
         )
         
-        if extra_info.get("multimodal_inputs"):
+        has_multimodal = bool(extra_info.get("images") or extra_info.get("videos"))
+        if has_multimodal:
             sample.multimodal_inputs = extra_info["multimodal_inputs"]
-        
-        token_ids, loss_mask = MASK_GENERATOR.get_loss_mask_with_multimodal_alignment(
-            messages, input_ids, bool(extra_info.get("images") or extra_info.get("videos")), tools=tools
-        )
+            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask_with_multimodal_alignment(
+                messages, input_ids, tools=tools
+            )
+        else:
+            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages, tools=tools)
         
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
 

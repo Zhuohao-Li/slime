@@ -156,30 +156,27 @@ class MultiTurnLossMaskGenerator:
         Returns:
             Tuple of (token_ids, loss_mask) where loss_mask is aligned with input_ids.
         """
-        if has_multimodal:
-            from slime.utils.processing_utils import extract_text_from_messages
-            
-            text_only_messages = extract_text_from_messages(messages)
-            _, loss_mask_text = self.get_loss_mask(text_only_messages, tools=tools)
-            
-            diff = len(input_ids) - len(loss_mask_text)
-            if diff > 0:
-                # Image tokens at the beginning should have mask=0 (no loss)
-                loss_mask = [0] * diff + loss_mask_text
-            elif diff < 0:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(
-                    f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens. "
-                    f"Truncating loss_mask to match input_ids length."
-                )
-                loss_mask = loss_mask_text[-len(input_ids):]
-            else:
-                loss_mask = loss_mask_text
-            
-            return input_ids, loss_mask
+        from slime.utils.processing_utils import extract_text_from_messages
+        
+        text_only_messages = extract_text_from_messages(messages)
+        _, loss_mask_text = self.get_loss_mask(text_only_messages, tools=tools)
+        
+        diff = len(input_ids) - len(loss_mask_text)
+        if diff > 0:
+            # Image tokens at the beginning should have mask=0 (no loss)
+            loss_mask = [0] * diff + loss_mask_text
+        elif diff < 0:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Unexpected: input_ids shorter than text loss_mask by {-diff} tokens. "
+                f"Truncating loss_mask to match input_ids length."
+            )
+            loss_mask = loss_mask_text[-len(input_ids):]
         else:
-            return self.get_loss_mask(messages, tools=tools)
+            loss_mask = loss_mask_text
+        
+        return input_ids, loss_mask
     
     def get_text_from_loss_mask(self, token_ids: list[int], loss_masks: list[int]) -> list[str]:
         selected_texts = []
