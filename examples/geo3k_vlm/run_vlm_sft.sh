@@ -74,8 +74,7 @@ CKPT_ARGS=(
 SFT_ARGS=(
    --rollout-function-path slime.rollout.sft_rollout.generate_rollout
    --prompt-data /root/datasets/${DATASET_LOCAL_NAME}/train_formatted.parquet
-   --input-key problem
-   --label-key answer
+   --input-key messages
    --apply-chat-template
    --rollout-shuffle
    --num-epoch 3000
