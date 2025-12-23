@@ -139,23 +139,8 @@ class MultiTurnLossMaskGenerator:
             raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
 
     def get_loss_mask_with_multimodal_alignment(
-        self, messages: list[dict], input_ids: list[int], has_multimodal: bool, tools: list[dict] = None
+        self, messages: list[dict], input_ids: list[int], tools: list[dict] = None
     ) -> tuple[list[int], list[int]]:
-        """Get loss mask with proper alignment for multimodal inputs.
-        
-        For multimodal inputs, the input_ids contain image tokens that are not present
-        in the text-only messages. This method extracts text from messages, computes
-        text-only loss mask, and aligns it with the full input_ids.
-        
-        Args:
-            messages: Original messages (may contain multimodal content).
-            input_ids: Full input_ids from processor (includes image tokens if multimodal).
-            has_multimodal: Whether the input contains multimodal data.
-            tools: Optional tools for chat template.
-            
-        Returns:
-            Tuple of (token_ids, loss_mask) where loss_mask is aligned with input_ids.
-        """
         from slime.utils.processing_utils import extract_text_from_messages
         
         text_only_messages = extract_text_from_messages(messages)

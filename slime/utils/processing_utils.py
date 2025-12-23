@@ -83,14 +83,7 @@ def prepare_model_inputs(
 
 
 def extract_text_from_messages(messages: list[dict]) -> list[dict]:
-    """Extract text-only content from messages that may contain multimodal content.
-    
-    Args:
-        messages: List of message dicts, where content may be a list with multimodal items.
-        
-    Returns:
-        List of message dicts with text-only content.
-    """
+    """Extract text-only content from messages that may contain multimodal content."""
     text_only_messages = []
     for msg in messages:
         if isinstance(msg.get("content"), list):
