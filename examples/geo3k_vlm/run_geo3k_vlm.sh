@@ -170,7 +170,7 @@ else
    BACKEND_ARGS=(
    --train-backend megatron
    --load /root/models/${MODEL_NAME}
-   --tensor-model-parallel-size 4
+   --tensor-model-parallel-size 2
    --sequence-parallel
    --pipeline-model-parallel-size 1
    --context-parallel-size 1
