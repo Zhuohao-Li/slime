@@ -191,7 +191,7 @@ else
    
    # get MODEL_ARGS from scripts/models for megatron backend
    SLIME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
-   MODEL_ARGS_FILE=$(echo "$MODEL_NAME" | sed 's/-Instruct//g; s/-Thinking//g; s/Qwen3-VL-/qwen3-/g; s/-2B/-1.7B/g')
+   MODEL_ARGS_FILE=$(echo "$MODEL_NAME" | sed 's/-Instruct//g; s/-Thinking//g; s/Qwen2.5-VL-/qwen2.5-/g; s/Qwen3-VL-/qwen3-/g; s/-2B/-1.7B/g')
    source "${SLIME_DIR}/scripts/models/${MODEL_ARGS_FILE}.sh"
 fi
 
