@@ -84,8 +84,8 @@ fi
 # Common args
 CKPT_ARGS=(
    --hf-checkpoint /root/models/${MODEL_NAME}
-   # vl model has rotary base 5000000
-   # --rotary-base 5000000
+   # qwen3 vl model has rotary base 5000000, set it when applicable
+   --rotary-base 5000000
 )
 
 ROLLOUT_ARGS=(
@@ -170,7 +170,7 @@ else
    BACKEND_ARGS=(
    --train-backend megatron
    --load /root/models/${MODEL_NAME}
-   --tensor-model-parallel-size 2
+   --tensor-model-parallel-size 4
    --sequence-parallel
    --pipeline-model-parallel-size 1
    --context-parallel-size 1
