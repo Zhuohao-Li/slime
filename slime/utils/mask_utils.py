@@ -125,45 +125,114 @@ class MultiTurnLossMaskGenerator:
             loss_mask = [0] * len(token_ids)
         return token_ids, loss_mask
 
-    def get_loss_mask(self, messages: list[dict], tools: list[dict] = None) -> tuple[list[int], list[int]]:
+    def get_loss_mask(
+        self, messages: list[dict], tools: list[dict] = None, input_ids: list[int] = None
+    ) -> tuple[list[int], list[int]]:
+        """Get loss mask for SFT training.
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys.
+            tools: Optional list of tool definitions.
+            input_ids: Optional input_ids from processor for multimodal inputs.
+                       If provided, the loss_mask will be aligned to handle image tokens.
+                       
+        Returns:
+            Tuple of (token_ids, loss_mask). If input_ids is provided, returns
+            (input_ids, aligned_loss_mask) instead.
+        """
+        # First get text-only token_ids and loss_mask based on tokenizer type
         if self.tokenizer_type == "qwen":
             if "<｜Assistant｜>" in self.tokenizer.get_added_vocab():
-                return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
-
-            return self.gen_multi_turn_loss_mask_qwen(messages, tools)
+                text_token_ids, loss_mask_text = self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
+            else:
+                text_token_ids, loss_mask_text = self.gen_multi_turn_loss_mask_qwen(messages, tools)
         elif self.tokenizer_type == "qwen3":
-            return self.gen_multi_turn_loss_mask_qwen3(messages, tools)
+            text_token_ids, loss_mask_text = self.gen_multi_turn_loss_mask_qwen3(messages, tools)
         elif self.tokenizer_type == "distill_qwen":
-            return self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
+            text_token_ids, loss_mask_text = self.gen_multi_turn_loss_mask_distill_qwen(messages, tools)
         else:
             raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}")
+        
+        # If input_ids is provided, align loss_mask for multimodal inputs
+        # Uses greedy matching - works for any template regardless of image token position
+        if input_ids is not None:
+            loss_mask = self._align_multimodal_loss_mask(input_ids, text_token_ids, loss_mask_text)
+            assert len(loss_mask) == len(input_ids), (
+                f"Aligned loss_mask length ({len(loss_mask)}) != input_ids length ({len(input_ids)})"
+            )
+            return input_ids, loss_mask
+        
+        return text_token_ids, loss_mask_text
 
-    def get_loss_mask_with_multimodal_alignment(
-        self, messages: list[dict], input_ids: list[int], tools: list[dict] = None
-    ) -> tuple[list[int], list[int]]:
-        text = []
-        for msg in messages:
-            if isinstance(msg.get("content"), list):
-                text_parts = []
-                for item in msg["content"]:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        text_parts.append(item.get("text", ""))
-                    elif isinstance(item, str):
-                        text_parts.append(item)
-                text.append({"role": msg["role"], "content": " ".join(text_parts)})
+    def _align_multimodal_loss_mask(
+        self, input_ids: list[int], text_token_ids: list[int], loss_mask_text: list[int]
+    ) -> list[int]:
+        """Align loss mask for multimodal inputs.
+        
+        For Qwen3-VL style models: image tokens are enclosed between <|vision_start|>
+        and <|vision_end|>. The text_token_ids contains <|image_pad|> as placeholder,
+        while input_ids contains the actual image tokens.
+        
+        Args:
+            input_ids: Full input_ids from processor (includes image tokens).
+            text_token_ids: Token ids from tokenizer (with <|image_pad|> placeholder).
+            loss_mask_text: Loss mask for text_token_ids.
+            
+        Returns:
+            Aligned loss_mask with same length as input_ids.
+        """
+        vocab = self.tokenizer.get_added_vocab()
+        vision_start_id = vocab.get("<|vision_start|>")
+        vision_end_id = vocab.get("<|vision_end|>")
+        image_pad_id = vocab.get("<|image_pad|>")
+        
+        loss_mask = []
+        text_idx = 0
+        input_idx = 0
+        in_vision = False
+        
+        while input_idx < len(input_ids):
+            token = input_ids[input_idx]
+            
+            if vision_start_id is not None and token == vision_start_id:
+                # <|vision_start|> - match with text and enter vision region
+                in_vision = True
+                if text_idx < len(text_token_ids) and text_token_ids[text_idx] == vision_start_id:
+                    loss_mask.append(loss_mask_text[text_idx])
+                    text_idx += 1
+                else:
+                    loss_mask.append(0)
+                input_idx += 1
+            elif vision_end_id is not None and token == vision_end_id:
+                # <|vision_end|> - match with text and exit vision region
+                in_vision = False
+                # Skip <|image_pad|> in text_token_ids if present
+                while text_idx < len(text_token_ids) and image_pad_id is not None and text_token_ids[text_idx] == image_pad_id:
+                    text_idx += 1
+                if text_idx < len(text_token_ids) and text_token_ids[text_idx] == vision_end_id:
+                    loss_mask.append(loss_mask_text[text_idx])
+                    text_idx += 1
+                else:
+                    loss_mask.append(0)
+                input_idx += 1
+            elif in_vision:
+                # Inside vision region - these are image tokens, no loss
+                loss_mask.append(0)
+                input_idx += 1
             else:
-                text.append(msg)
-
-        _, loss_mask_text = self.get_loss_mask(text, tools=tools)
-
-        diff = len(input_ids) - len(loss_mask_text)
-        assert diff >= 0, (
-            f"input_ids (length={len(input_ids)}) is shorter than text loss_mask (length={len(loss_mask_text)}) "
-            f"Please check if processor and tokenizer tokenization are consistent."
-        )
-        loss_mask = [0] * diff + loss_mask_text
-
-        return input_ids, loss_mask
+                # Regular text token - should match
+                if text_idx < len(text_token_ids) and token == text_token_ids[text_idx]:
+                    loss_mask.append(loss_mask_text[text_idx])
+                    text_idx += 1
+                    input_idx += 1
+                else:
+                    raise ValueError(
+                        f"Token mismatch at text_idx={text_idx}, input_idx={input_idx}. "
+                        f"Expected {text_token_ids[text_idx] if text_idx < len(text_token_ids) else 'EOF'}, "
+                        f"got {token}."
+                    )
+        
+        return loss_mask
 
     def get_text_from_loss_mask(self, token_ids: list[int], loss_masks: list[int]) -> list[str]:
         selected_texts = []
