@@ -1,5 +1,7 @@
 from transformers import AutoTokenizer
 
+from slime.utils.types import MultimodalTypes
+
 
 def get_response_lengths(loss_masks: list[list[int]]) -> list[int]:
     # return the lengths starting from the first occurrence of 1 to the end of each loss mask
@@ -44,6 +46,97 @@ class MultiTurnLossMaskGenerator:
 
         system_message_length = idx_1 - ((idx_2 - idx_1) - end_interval - len(raw_token_ids))
         return system_message_length, gen_token_length
+
+    def _normalize_messages_for_loss_mask(self, messages: list[dict]) -> list[dict]:
+        normalized = []
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, list):
+                parts = []
+                for item in content:
+                    if isinstance(item, dict):
+                        item_type = item.get("type")
+                        if item_type == "text":
+                            parts.append(item.get("text", ""))
+                        elif item_type in ("image", "video", "audio"):
+                            mt = MultimodalTypes.get(item_type)
+                            parts.append(mt.placeholder if mt else f"<{item_type}>")
+                    elif isinstance(item, str):
+                        parts.append(item)
+                new_msg = dict(msg)
+                new_msg["content"] = "".join(parts)
+                normalized.append(new_msg)
+            else:
+                normalized.append(msg)
+        return normalized
+
+    def _get_multimodal_token_ids(self) -> set[int]:
+        keywords = ("image", "video", "audio", "vision")
+        ids: set[int] = set()
+
+        added_vocab = self.tokenizer.get_added_vocab()
+        for token, token_id in added_vocab.items():
+            if any(k in token.lower() for k in keywords):
+                ids.add(token_id)
+
+        for token in getattr(self.tokenizer, "additional_special_tokens", []) or []:
+            if not any(k in token.lower() for k in keywords):
+                continue
+            token_id = self.tokenizer.convert_tokens_to_ids(token)
+            if token_id is None:
+                continue
+            if self.tokenizer.unk_token_id is not None and token_id == self.tokenizer.unk_token_id:
+                continue
+            ids.add(token_id)
+
+        for placeholder in [m.placeholder for m in MultimodalTypes.all()]:
+            token_id = self.tokenizer.convert_tokens_to_ids(placeholder)
+            if token_id is None:
+                continue
+            if self.tokenizer.unk_token_id is not None and token_id == self.tokenizer.unk_token_id:
+                continue
+            ids.add(token_id)
+
+        return ids
+
+    def _align_loss_mask_to_input_ids(
+        self, input_ids: list[int], token_ids: list[int], loss_mask: list[int]
+    ) -> list[int]:
+        multimodal_token_ids = self._get_multimodal_token_ids()
+        aligned_mask = []
+        text_idx = 0
+
+        for tok in input_ids:
+            if tok in multimodal_token_ids:
+                aligned_mask.append(0)
+                continue
+
+            while text_idx < len(token_ids) and token_ids[text_idx] in multimodal_token_ids:
+                text_idx += 1
+
+            if text_idx >= len(token_ids):
+                aligned_mask.append(0)
+                continue
+
+            if tok != token_ids[text_idx]:
+                raise ValueError(
+                    "Multimodal alignment failed: token mismatch between processor input_ids and loss mask tokens. "
+                    "Please check that the chat template and processor tokenization are consistent."
+                )
+
+            aligned_mask.append(loss_mask[text_idx])
+            text_idx += 1
+
+        while text_idx < len(token_ids) and token_ids[text_idx] in multimodal_token_ids:
+            text_idx += 1
+
+        if text_idx != len(token_ids):
+            raise ValueError(
+                "Multimodal alignment failed: unused loss mask tokens remain after alignment. "
+                "Please check that the chat template and processor tokenization are consistent."
+            )
+
+        return aligned_mask
 
     def gen_multi_turn_loss_mask_qwen(
         self, messages: list[dict], tools: list[dict] = None
@@ -142,28 +235,9 @@ class MultiTurnLossMaskGenerator:
     def get_loss_mask_with_multimodal_alignment(
         self, messages: list[dict], input_ids: list[int], tools: list[dict] = None
     ) -> tuple[list[int], list[int]]:
-        text = []
-        for msg in messages:
-            if isinstance(msg.get("content"), list):
-                text_parts = []
-                for item in msg["content"]:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        text_parts.append(item.get("text", ""))
-                    elif isinstance(item, str):
-                        text_parts.append(item)
-                text.append({"role": msg["role"], "content": " ".join(text_parts)})
-            else:
-                text.append(msg)
-
-        _, loss_mask_text = self.get_loss_mask(text, tools=tools)
-
-        diff = len(input_ids) - len(loss_mask_text)
-        assert diff >= 0, (
-            f"input_ids (length={len(input_ids)}) is shorter than text loss_mask (length={len(loss_mask_text)}) "
-            f"Please check if processor and tokenizer tokenization are consistent."
-        )
-        loss_mask = [0] * diff + loss_mask_text
-
+        normalized_messages = self._normalize_messages_for_loss_mask(messages)
+        token_ids, loss_mask_text = self.get_loss_mask(normalized_messages, tools=tools)
+        loss_mask = self._align_loss_mask_to_input_ids(input_ids, token_ids, loss_mask_text)
         return input_ids, loss_mask
 
     def get_text_from_loss_mask(self, token_ids: list[int], loss_masks: list[int]) -> list[str]:

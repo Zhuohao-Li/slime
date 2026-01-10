@@ -46,7 +46,31 @@ def generate_rollout(args, rollout_id, data_buffer, evaluation=False):
         messages = sample.prompt
         tools = sample.metadata.get("tools", None)
 
-        token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages, tools=tools)
+        if PROCESSOR and sample.multimodal_inputs:
+            if not isinstance(messages, list):
+                raise ValueError(
+                    "Multimodal SFT requires prompt as a list of messages. "
+                    "Disable --apply-chat-template so the raw messages are preserved."
+                )
+            processor_output = PROCESSOR(text=messages, **sample.multimodal_inputs)
+            input_ids = processor_output["input_ids"]
+            if hasattr(input_ids, "tolist"):
+                input_ids = input_ids.tolist()
+            if input_ids and isinstance(input_ids[0], list):
+                input_ids = input_ids[0]
+            sample.multimodal_train_inputs = {
+                k: v for k, v in processor_output.items() if k not in ["input_ids", "attention_mask"]
+            } or None
+            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask_with_multimodal_alignment(
+                messages, input_ids, tools=tools
+            )
+        else:
+            if not isinstance(messages, list):
+                raise ValueError(
+                    "SFT rollout expects prompt as a list of messages. "
+                    "Disable --apply-chat-template so the raw messages are preserved."
+                )
+            token_ids, loss_mask = MASK_GENERATOR.get_loss_mask(messages, tools=tools)
 
         response_length = MASK_GENERATOR.get_response_lengths([loss_mask])[0]
 
