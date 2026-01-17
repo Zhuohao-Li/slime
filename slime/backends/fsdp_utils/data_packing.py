@@ -3,7 +3,6 @@
 import math
 
 import torch
-import torch.nn.functional as F
 
 from slime.utils.seqlen_balancing import get_seqlen_balanced_partitions
 
@@ -17,7 +16,7 @@ def pack_sequences(
     advantages: list[float],
     returns: list[float],
     rollout_log_probs: list[list[float]] | None = None,
-    multimodal_inputs: list[dict] | None = None,
+    multimodal_train_inputs: list[dict] | None = None,
     max_tokens_per_gpu: int | None = None,
     num_packs: int | None = None,
 ) -> list[dict]:
@@ -33,7 +32,7 @@ def pack_sequences(
         advantages: List of advantages per sequence
         returns: List of returns per sequence
         rollout_log_probs: List of rollout log probabilities per sequence
-        multimodal_inputs: List of dict of multimodal tokens per sequence
+        multimodal_train_inputs: List of dict of multimodal tensors for training per sequence
         max_tokens_per_gpu: Maximum tokens per GPU pack
         num_packs: Explicit number of packs to create
 
@@ -100,19 +99,19 @@ def pack_sequences(
             ),
         }
 
-        # Collect and add multimodal inputs for this partition
-        if multimodal_inputs:
+        # Collect and add multimodal training tensors for this partition
+        if multimodal_train_inputs:
             multimodal_data = {}  # key -> concatenated tensor
             multimodal_num_items = {}  # key -> list of item counts per sequence
             for i in indices:
-                for key, mm_tensor in multimodal_inputs[i].items():
+                for key, mm_tensor in multimodal_train_inputs[i].items():
                     if key not in multimodal_data:
                         multimodal_data[key] = mm_tensor
                         multimodal_num_items[key] = [mm_tensor.size(0)]
                     else:
                         multimodal_data[key] = torch.cat([multimodal_data[key], mm_tensor], dim=0)
                         multimodal_num_items[key].append(mm_tensor.size(0))
-            packed_batch["multimodal_inputs"] = multimodal_data
+            packed_batch["multimodal_train_inputs"] = multimodal_data
             packed_batch["multimodal_num_items"] = multimodal_num_items
 
         result.append(packed_batch)
@@ -157,8 +156,8 @@ def unpack_sequences(packed_batch: dict) -> list[dict]:
                 # Skip multimodal_num_items - it's metadata
                 if key == "multimodal_num_items":
                     continue
-                # Handle multimodal_inputs dict: split each tensor using multimodal_num_items
-                elif key == "multimodal_inputs" and isinstance(value, dict):
+                # Handle multimodal_train_inputs dict: split each tensor using multimodal_num_items
+                elif key == "multimodal_train_inputs" and isinstance(value, dict):
                     instance[key] = {}
                     for mm_key, mm_tensor in value.items():
                         if mm_key in multimodal_num_items:
@@ -193,26 +192,3 @@ def unpack_sequences(packed_batch: dict) -> list[dict]:
         instances.append(instance)
 
     return instances
-
-
-def pad_packed_sequence_with_cp(packed_sequence: dict, cp_size: int) -> dict:
-    """Pad packed sequence to make total length divisible by cp_size.
-
-    Args:
-        packed_sequence: Packed sequence dict containing tokens, position_ids, cu_seqlens, etc.
-        cp_size: Context parallelism world size
-
-    Returns:
-        Padded packed sequence
-    """
-    seq_length = len(packed_sequence["tokens"])
-    # Calculate padding needed: (cp_size - seq_length % cp_size) % cp_size
-    remainder = seq_length % cp_size
-    pad_length = (cp_size - remainder) % cp_size
-
-    if pad_length > 0:
-        packed_sequence["tokens"] = F.pad(packed_sequence["tokens"], (0, pad_length), value=0)
-        packed_sequence["position_ids"] = F.pad(packed_sequence["position_ids"], (0, pad_length), value=0)
-        packed_sequence["loss_masks"] = F.pad(packed_sequence["loss_masks"], (0, pad_length), value=0)
-        packed_sequence["cu_seqlens"][-1] += pad_length
-    return packed_sequence
