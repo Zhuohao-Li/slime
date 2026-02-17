@@ -827,6 +827,18 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
                 ),
             )
             parser.add_argument(
+                "--dppo-loss-mode",
+                type=str,
+                choices=["dppo_binary_tv"],
+                default=None,
+                help=(
+                    "Enable DPPO (Divergence PPO) policy loss. Replaces PPO ratio clipping "
+                    "with a divergence-based mask. 'dppo_binary_tv' uses Binary Total Variation. "
+                    "Uses --eps-clip and --eps-clip-high as divergence thresholds. "
+                    "See: https://arxiv.org/abs/2602.04879"
+                ),
+            )
+            parser.add_argument(
                 "--disable-compute-advantages-and-returns",
                 action="store_false",
                 dest="compute_advantages_and_returns",
