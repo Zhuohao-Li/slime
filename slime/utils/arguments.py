@@ -1113,6 +1113,55 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
             parser.add_argument("--wandb-run-id", type=str, default=None)
             return parser
 
+        # swanlab
+        def add_swanlab_arguments(parser):
+            parser.add_argument("--use-swanlab", action="store_true", default=False)
+            parser.add_argument(
+                "--swanlab-mode",
+                type=str,
+                default=None,
+                help=(
+                    "SwanLab mode, e.g. cloud/local/offline. "
+                    "If not set, SwanLab will use its own default mode."
+                ),
+            )
+            parser.add_argument(
+                "--swanlab-dir",
+                type=str,
+                default=None,
+                help="Directory to store SwanLab logs.",
+            )
+            parser.add_argument("--swanlab-key", type=str, default=None)
+            parser.add_argument("--swanlab-host", type=str, default=None)
+            parser.add_argument("--swanlab-project", type=str, default=None)
+            parser.add_argument(
+                "--swanlab-experiment-name",
+                type=str,
+                default=None,
+                help="SwanLab experiment name. If unset, fallback to --wandb-group or `slime-run`.",
+            )
+            parser.add_argument(
+                "--disable-swanlab-random-suffix",
+                action="store_false",
+                dest="swanlab_random_suffix",
+                default=True,
+                help="Disable the random 6-char suffix appended to SwanLab experiment name.",
+            )
+            parser.add_argument(
+                "--swanlab-description",
+                type=str,
+                default=None,
+                help="Optional description for SwanLab experiment.",
+            )
+            parser.add_argument(
+                "--swanlab-resume",
+                type=str,
+                default=None,
+                help="Resume policy passed to swanlab.init(resume=...).",
+            )
+            parser.add_argument("--swanlab-run-id", type=str, default=None)
+            return parser
+
         # tensorboard
         def add_tensorboard_arguments(parser):
             # tb_project_name, tb_experiment_name
@@ -1455,6 +1504,7 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
         parser = add_algo_arguments(parser)
         parser = add_on_policy_distillation_arguments(parser)
         parser = add_wandb_arguments(parser)
+        parser = add_swanlab_arguments(parser)
         parser = add_tensorboard_arguments(parser)
         parser = add_router_arguments(parser)
         parser = add_debug_arguments(parser)

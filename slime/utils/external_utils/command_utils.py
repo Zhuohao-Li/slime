@@ -224,6 +224,40 @@ def get_default_wandb_args(test_file: str, run_name_prefix: str | None = None, r
     )
 
 
+def get_default_swanlab_args(test_file: str, run_name_prefix: str | None = None, run_id: str | None = None):
+    if not os.environ.get("SWANLAB_API_KEY"):
+        print("Skip swanlab configuration since SWANLAB_API_KEY is not found")
+        return ""
+
+    test_file = Path(test_file)
+    test_name = test_file.stem
+    if len(test_name) < 6:
+        test_name = f"{test_file.parent.name}_{test_name}"
+
+    experiment_name = run_id or create_run_id()
+    if (x := os.environ.get("GITHUB_COMMIT_NAME")) is not None:
+        experiment_name += f"_{x}"
+    if (x := run_name_prefix) is not None:
+        experiment_name = f"{x}_{experiment_name}"
+
+    swanlab_key = os.environ.get("SWANLAB_API_KEY")
+    swanlab_host = os.environ.get("SWANLAB_HOST")
+    swanlab_mode = os.environ.get("SWANLAB_MODE")
+
+    args = (
+        "--use-swanlab "
+        f"--swanlab-project slime-{test_name} "
+        f"--swanlab-experiment-name {experiment_name} "
+        f"--swanlab-key '{swanlab_key}' "
+        "--disable-swanlab-random-suffix "
+    )
+    if swanlab_host:
+        args += f"--swanlab-host '{swanlab_host}' "
+    if swanlab_mode:
+        args += f"--swanlab-mode {swanlab_mode} "
+    return args
+
+
 def create_run_id() -> str:
     return datetime.datetime.utcnow().strftime("%y%m%d-%H%M%S") + f"-{random.Random().randint(0, 999):03d}"
 

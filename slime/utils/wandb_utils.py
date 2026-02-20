@@ -157,3 +157,7 @@ def _init_wandb_common():
     wandb.define_metric("eval/step")
     wandb.define_metric("eval/*", step_metric="eval/step")
     wandb.define_metric("perf/*", step_metric="rollout/step")
+
+
+def log(metrics):
+    wandb.log(metrics)
