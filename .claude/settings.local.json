@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(pdftotext:*)",
+      "Bash(python3 -c:*)",
+      "Bash(pip install:*)",
+      "Bash(nvidia-smi:*)",
+      "Bash(ip:*)",
+      "Bash(env:*)",
+      "Bash(ibstat:*)",
+      "Bash(lspci:*)",
+      "Bash(ray status:*)",
+      "Bash(ibv_devinfo:*)",
+      "Bash(echo:*)",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Bash(python3:*)",
+      "Bash(bash:*)",
+      "Bash(ray job status:*)",
+      "Bash(ray job logs:*)",
+      "Bash(ssh:*)"
+    ]
+  }
+}

@@ -148,6 +148,56 @@ def compute_policy_loss(
     return pg_losses, clipfrac
 
 
+def compute_dppo_policy_loss(
+    log_probs: torch.Tensor,
+    old_log_probs: torch.Tensor,
+    advantages: torch.Tensor,
+    eps_clip: float,
+    eps_clip_high: float,
+    loss_mode: str = "dppo_binary_tv",
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """DPPO (Divergence PPO) mask-based policy loss.
+
+    Replaces PPO's ratio clipping with a divergence-based mask that blocks
+    updates where the actual probability divergence exceeds a threshold.
+    This avoids over-penalizing low-probability tokens and under-penalizing
+    high-probability ones.
+
+    Reference: "Rethinking the Trust Region in LLM Reinforcement Learning"
+    (https://arxiv.org/abs/2602.04879), Equations 11-13.
+
+    Args:
+        log_probs: Current policy log-probs (concatenated flat tensor).
+        old_log_probs: Rollout policy log-probs (concatenated flat tensor).
+        advantages: Advantage values (concatenated flat tensor).
+        eps_clip: Divergence threshold for negative advantage (lower bound).
+        eps_clip_high: Divergence threshold for positive advantage (upper bound).
+        loss_mode: DPPO variant. Currently supports "dppo_binary_tv".
+
+    Returns:
+        Tuple of (pg_losses, clipfrac) as flat tensors.
+    """
+    prob = log_probs.exp()
+    old_prob = old_log_probs.exp()
+    ratio = (log_probs - old_log_probs).exp()
+
+    if loss_mode == "dppo_binary_tv":
+        # Binary TV divergence (Eq. 13): D = |µ(a_t|s_t) - π(a_t|s_t)|
+        # Mask logic (Eq. 12): block if (A>0, prob increased beyond δ) or (A<0, prob decreased beyond δ)
+        invalid_positive = (prob - old_prob) > eps_clip_high
+        invalid_negative = (prob - old_prob) < -eps_clip
+    else:
+        raise ValueError(f"Unknown dppo_loss_mode: {loss_mode}")
+
+    invalid_mask = torch.where(advantages > 0, invalid_positive, invalid_negative)
+    mask = 1.0 - invalid_mask.detach().float()
+
+    pg_losses = -mask * ratio * advantages
+    clipfrac = 1.0 - mask
+
+    return pg_losses, clipfrac
+
+
 def compute_log_probs(logits: torch.Tensor, tokens: torch.Tensor, process_group: dist.ProcessGroup | None):
     # TODO: when megatron is not installed, fall back to naive implementation
     from megatron.core.fusions.fused_cross_entropy import fused_vocab_parallel_cross_entropy

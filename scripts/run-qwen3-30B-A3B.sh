@@ -28,16 +28,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 source "${SCRIPT_DIR}/models/qwen3-30B-A3B.sh"
 
 CKPT_ARGS=(
-   --hf-checkpoint /root/Qwen3-30B-A3B
+   --hf-checkpoint /root/model/Qwen3-30B-A3B
    #--hf-checkpoint /root/Qwen3-30B-A3B-FP8
-   --ref-load /root/Qwen3-30B-A3B_torch_dist
-   --load /root/Qwen3-30B-A3B_slime/
-   --save /root/Qwen3-30B-A3B_slime/
-   --save-interval 20
+   --ref-load /root/model/Qwen3-30B-A3B_torch_dist
+   # --load /root/model/Qwen3-30B-A3B_slime/
+   # --save /root/Qwen3-30B-A3B_slime/
+   # --save-interval 20
 )
 
 ROLLOUT_ARGS=(
-   --prompt-data /root/dapo-math-17k/dapo-math-17k.jsonl
+   --prompt-data /root/data/dapo-math-17k/dapo-math-17k.jsonl
    --input-key prompt
    --label-key label
    --apply-chat-template
@@ -54,11 +54,11 @@ ROLLOUT_ARGS=(
 )
 
 EVAL_ARGS=(
-   --eval-interval 20
-   --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
-   --n-samples-per-eval-prompt 16
-   --eval-max-response-len 16384
-   --eval-top-p 1
+   # --eval-interval 20
+   # --eval-prompt-data aime /root/aime-2024/aime-2024.jsonl
+   # --n-samples-per-eval-prompt 16
+   # --eval-max-response-len 16384
+   # --eval-top-p 1
 )
 
 PERF_ARGS=(
@@ -66,7 +66,7 @@ PERF_ARGS=(
    --sequence-parallel
    --pipeline-model-parallel-size 1
    --context-parallel-size 1
-   --expert-model-parallel-size 8
+   --expert-model-parallel-size 16
    --expert-tensor-parallel-size 1
 
    --recompute-granularity full
@@ -102,10 +102,10 @@ OPTIMIZER_ARGS=(
 )
 
 WANDB_ARGS=(
-   #--use-wandb
-   # --wandb-project slime-dev
-   # --wandb-group qwen3-30B-A3B-test
-   # --wandb-key ${WANDB_KEY}
+   --use-wandb
+   --wandb-project slime-dev
+   --wandb-group qwen3-30B-A3B-test
+   --wandb-key ${WANDB_API_KEY}
 )
 
 SGLANG_ARGS=(
@@ -126,8 +126,20 @@ MISC_ARGS=(
 )
 
 # launch the master node of ray in container
-export MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
-ray start --head --node-ip-address ${MASTER_ADDR} --num-gpus 8 --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=8265
+export no_proxy="127.0.0.1,${NODE_IP}"
+export MASTER_ADDR="${NODE_IP}"
+ray start --head --node-ip-address ${NODE_IP} --num-gpus 8 --disable-usage-stats --dashboard-host=0.0.0.0 --dashboard-port=8265
+
+IFS=',' read -ra NODES <<< "$NODE_IP_LIST"
+for node in "${NODES[@]}"; do
+  WORKER_IP=$(echo "$node" | cut -d':' -f1)
+  if [[ "$WORKER_IP" == "$NODE_IP" ]]; then
+    continue
+  fi
+  ssh root@"${WORKER_IP}" \
+    "pkill -9 sglang ; ray stop --force ; pkill -9 python ; ray start --address=${MASTER_ADDR}:6379 --num-gpus 8 --node-ip-address ${WORKER_IP} --disable-usage-stats" &
+done
+wait
 
 # Build the runtime environment JSON with proper variable substitution
 RUNTIME_ENV_JSON="{
@@ -141,7 +153,7 @@ RUNTIME_ENV_JSON="{
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json="${RUNTIME_ENV_JSON}" \
    -- python3 train.py \
-   --actor-num-nodes 1 \
+   --actor-num-nodes 2 \
    --actor-num-gpus-per-node 8 \
    --colocate \
    ${MODEL_ARGS[@]} \

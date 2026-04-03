@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Slime is an LLM post-training framework for RL scaling, designed to connect Megatron-LM (training) with SGLang (inference/rollout). It supports 30+ model architectures including Qwen3, DeepSeek V3, GLM4, Llama 3, Kimi-K2, and others. The framework uses Ray for distributed orchestration across training and rollout workers.
 
+**Key capabilities:**
+- High-performance RL training (PPO, GRPO, GSPO, Reinforce++)
+- Flexible data generation with custom rollout and reward functions
+- Support for both synchronous and asynchronous training modes
+- Multi-turn agent training with tool calling support
+- Colocation mode for memory-efficient single-GPU training
+
 ## Common Commands
 
 ### Linting and Formatting
@@ -37,6 +44,33 @@ pytest -m "not skipduringci"
 Test markers: `unit`, `integration`, `system`, `acceptance`, `docs`, `skipduringci`, `pleasefixme`.
 
 Note: Most tests require GPU hardware and launch full training runs. Tests in `tests/` are typically standalone scripts that configure and run training via subprocess.
+
+### Multi-Node Setup (Ray Cluster)
+
+```bash
+# On head node (node 0)
+ray start --head --node-ip-address ${MASTER_ADDR} \
+  --num-gpus 8 --disable-usage-stats
+
+# On worker nodes
+ray start --address=${MASTER_ADDR}:6379 --num-gpus 8
+
+# Submit job from head node
+ray job submit --address="http://127.0.0.1:8265" \
+  --runtime-env-json='{"env_vars": {"PYTHONPATH": "/root/Megatron-LM/"}}' \
+  -- python3 train.py [args...]
+
+# Stop Ray cluster
+ray stop --force
+```
+
+Environment variables for multi-node (especially in Docker/SLURM):
+```bash
+export SLIME_HOST_IP=$(hostname -I | awk '{print $1}')
+export GLOO_SOCKET_IFNAME=$(ip -o -4 addr show | awk '$4 ~ /^10\./ {print $2}')
+export NCCL_SOCKET_IFNAME=$(ip -o -4 addr show | awk '$4 ~ /^10\./ {print $2}')
+export NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME=$(ip -o -4 addr show | awk '$4 ~ /^10\./ {print $2}')
+```
 
 ### Installation
 
@@ -117,18 +151,73 @@ All layers are coordinated via **Ray** actors and placement groups.
 ### Key Argument Categories
 
 Arguments are parsed in `slime/utils/arguments.py`:
-- **Cluster**: `--actor-num-nodes`, `--rollout-num-gpus`, `--colocate`, `--offload-train`, `--offload-rollout`
-- **Training**: `--train-backend` (megatron/fsdp), `--advantage-estimator`, `--kl-loss-coef`
-- **Rollout**: `--prompt-data`, `--rm-type`, `--rollout-batch-size`
-- **SGLang**: Prefixed with `--sglang-*`
-- **Evaluation**: `--eval-interval`, `--eval-prompt-data`
+- **Cluster**: `--actor-num-nodes`, `--actor-num-gpus-per-node`, `--rollout-num-gpus`, `--rollout-num-gpus-per-engine`, `--colocate`, `--offload-train`, `--offload-rollout`
+- **Training**: `--train-backend` (megatron/fsdp), `--advantage-estimator` (grpo/gspo/reinforce++/ppo), `--kl-loss-coef`, `--use-dynamic-batch-size`, `--max-tokens-per-gpu`
+- **Rollout**: `--prompt-data`, `--rm-type`, `--rollout-batch-size`, `--n-samples-per-prompt`, `--rollout-temperature`, `--rollout-max-response-len`
+- **SGLang**: Prefixed with `--sglang-*` (e.g., `--sglang-mem-fraction-static`, `--sglang-context-length`)
+- **Router**: Prefixed with `--router-*` (e.g., `--router-balance-abs-threshold`)
+- **Evaluation**: `--eval-interval`, `--eval-prompt-data`, `--n-samples-per-eval-prompt`
+- **Checkpointing**: `--hf-checkpoint`, `--ref-load`, `--load`, `--save`, `--save-interval`, `--ckpt-format` (torch/torch_dist)
+- **Debugging**: `--debug-rollout-only`, `--debug-train-only`, `--save-debug-rollout-data`, `--load-debug-rollout-data`
 
 ### Key Technical Concepts
 
-- **Colocation mode** (`--colocate`): Training and inference share the same GPUs with memory offloading between phases
+- **Colocation mode** (`--colocate`): Training and inference share the same GPUs with memory offloading between phases. Requires `--sglang-mem-fraction-static` (typically 0.8) to prevent OOM.
 - **True on-policy mode**: Ensures identical log probs between SGLang rollout and Megatron training engines
 - **Off-policy distillation**: Teacher-student learning within on-policy training loop
 - **Weight sync**: After each training step, updated weights are pushed from Megatron/FSDP to SGLang engines
+- **Dynamic batching** (`--use-dynamic-batch-size`): Intelligently packs samples to maximize GPU utilization with `--max-tokens-per-gpu`
+- **Data packing**: All training uses variable-length packed sequences (varlen/thd), so `--seq-length` doesn't limit model context
+- **Rollout-Train relationship**: `(rollout-batch-size × n-samples-per-prompt) = (global-batch-size × num-steps-per-rollout)`
+- **Custom functions**: Support `--custom-generate-function-path` and `--custom-rm-path` for multi-turn agents and tool calling
+
+## Debugging
+
+### Separate Component Debugging
+
+```bash
+# Debug inference only (no Megatron)
+python train.py --debug-rollout-only [args...]
+
+# Debug training only (no SGLang)
+python train.py --debug-train-only [args...]
+
+# Save rollout data for reproducible training debugging
+python train.py --save-debug-rollout-data /path/data_{rollout_id}.pt [args...]
+
+# Load saved rollout data (automatically sets debug-train-only)
+python train.py --load-debug-rollout-data /path/data_{rollout_id}.pt [args...]
+```
+
+### Precision Alignment Checklist
+
+**First training step:**
+1. Check if generated rollout text is coherent (not garbled)
+   - If garbled: verify checkpoint loading, weight sync, parameter names match parallelism strategy
+   - For pretrained models: try instruct version to rule out model issues
+2. Verify `log_probs == ref_log_probs` (KL divergence = 0) and values are small
+   - If not equal: may need `--attention-backend flash` for Transformer Engine stability under CP
+   - If values large (>1): check training config or data chat template alignment
+3. When `--num-steps-per-rollout == 1`: check KL divergence = 0 and `grad_norm` is small
+   - May need `--moe-permute-fusion` for MoE models
+
+**Second training step:**
+- For colocation mode: verify second step loads correctly without OOM
+
+### SGLang IMA (Illegal Memory Access) Debugging
+
+```bash
+# Enable blocking mode to pinpoint error
+CUDA_LAUNCH_BLOCKING=1 python train.py [args...]
+
+# Toggle speculative decoding and CUDA graph
+# IMA often appears in padding/cuda graph replay or draft model differences
+
+# Disable deepep if used
+# Can cause IMA issues
+
+# Use CUDA Core Dump (see vLLM blog: "CUDA Core Dump: An Effective Tool...")
+```
 
 ## Code Style
 

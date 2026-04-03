@@ -11,6 +11,7 @@ from slime.utils.misc import load_function
 from slime.utils.ppo_utils import (
     calculate_log_probs_and_entropy,
     compute_approx_kl,
+    compute_dppo_policy_loss,
     compute_gspo_kl,
     compute_opsm_mask,
     compute_policy_loss,
@@ -566,7 +567,18 @@ def policy_loss_function(
         log_probs = torch.cat(log_probs, dim=0)
         ppo_kl = old_log_probs - log_probs
 
-    pg_loss, pg_clipfrac = compute_policy_loss(ppo_kl, advantages, args.eps_clip, args.eps_clip_high)
+    if getattr(args, "dppo_loss_mode", None) is not None:
+        pg_loss, pg_clipfrac = compute_dppo_policy_loss(
+            log_probs=log_probs,
+            old_log_probs=old_log_probs,
+            advantages=advantages,
+            eps_clip=args.eps_clip,
+            eps_clip_high=args.eps_clip_high,
+            loss_mode=args.dppo_loss_mode,
+        )
+        ppo_kl = old_log_probs - log_probs
+    else:
+        pg_loss, pg_clipfrac = compute_policy_loss(ppo_kl, advantages, args.eps_clip, args.eps_clip_high)
 
     if args.use_opsm:
         pg_loss = pg_loss * opsm_mask
